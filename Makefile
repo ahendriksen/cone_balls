@@ -65,7 +65,10 @@ coverage: ## check code coverage quickly with the default Python
 	coverage html
 	$(BROWSER) htmlcov/index.html
 
-docs: install_dev## generate Sphinx HTML documentation, including API docs
+docs/.nojekyll:
+	touch docs/.nojekyll
+
+docs: docs/.nojekyll install_dev ## generate Sphinx HTML documentation, including API docs
 	rm -f doc_sources/cone_balls.rst
 	rm -f doc_sources/modules.rst
 	sphinx-apidoc -o doc_sources/ cone_balls
