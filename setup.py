@@ -4,6 +4,7 @@
 """The setup script."""
 
 from setuptools import setup, find_packages
+from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 
 with open('README.md') as readme_file:
     readme = readme_file.read()
@@ -11,11 +12,18 @@ with open('README.md') as readme_file:
 with open('CHANGELOG.md') as history_file:
     history = history_file.read()
 
-requirements = [ ]
+requirements = [
+    "torchvision",
+    "astra-toolbox",
+    "Click",
+    "pyqtgraph",
+    "tifffile",
+    "tqdm"
+]
 
-setup_requirements = [ ]
+setup_requirements = []
 
-test_requirements = [ ]
+test_requirements = []
 
 dev_requirements = [
     'autopep8',
@@ -35,7 +43,7 @@ dev_requirements = [
     'bumpversion',
     'watchdog',
     'coverage',
-    
+
     ]
 
 setup(
@@ -61,11 +69,27 @@ setup(
     include_package_data=True,
     keywords='cone_balls',
     name='cone_balls',
+    entry_points='''
+        [console_scripts]
+        cone_balls=cone_balls:main
+    ''',
+    ext_modules=[
+        CUDAExtension(
+            name='cone_balls_cuda',
+            sources=[
+                'cone_balls/projector.cpp',
+                'cone_balls/projector_cuda.cu',
+            ],
+        ),
+    ],
+    cmdclass={
+        'build_ext': BuildExtension
+    },
     packages=find_packages(include=['cone_balls']),
     setup_requires=setup_requirements,
     test_suite='tests',
     tests_require=test_requirements,
-    extras_require={ 'dev': dev_requirements },
+    extras_require={'dev': dev_requirements},
     url='https://github.com/ahendriksen/cone_balls',
     version='0.1.0',
     zip_safe=False,

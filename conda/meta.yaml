@@ -3,7 +3,7 @@
 
 package:
     name: cone_balls
-    
+
     version: {{ data['version'] }}
 
 source:
@@ -16,9 +16,12 @@ requirements:
     build:
         - python
         - setuptools
-
+        - pytorch>=0.4.1
+        - torchvision
+        - cuda92
     run:
         - python
+        - pytorch>=0.4.1
         # dependencies are defined in setup.py
         {% for dep in data['install_requires'] %}
         - {{ dep.lower() }}

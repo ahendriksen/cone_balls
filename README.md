@@ -59,7 +59,7 @@ Python 3.
 
 Simply install with:
 ```
-conda install -c cicwi cone_balls
+conda install -c aahendriksen -c pytorch -c astra-toolbox/label/dev -c conda-forge cone_balls
 ```
 
 ### Installing from source
@@ -69,7 +69,35 @@ project. Go to the cloned directory and run PIP installer:
 ```
 git clone https://github.com/ahendriksen/cone_balls.git
 cd cone_balls
+conda install -c astra-toolbox/label/dev -c pytorch -c conda-forge cuda92 astra-toolbox pytorch torchvision tifffile
 pip install -e .
+```
+
+### Usage
+
+Cone balls is a command-line utility. It creates a directory with tiff files.
+
+```
+$ cone_balls --help
+Usage: cone_balls [OPTIONS] DIR
+
+  cone_balls generates ball phantoms for cone beam geometries
+
+Options:
+  --num_balls INTEGER             Number of balls to generate.
+  --ball_limit INTEGER            The maximal distance from the origin of a
+                                  ball
+  --num_angles INTEGER            Number of angles.
+  --det_row_count INTEGER         Detector row count.
+  --det_col_count INTEGER         Detector column count.
+  --pixel_size FLOAT              The detector pixel size.
+  --SOD FLOAT                     The source object distance.
+  --SDD FLOAT                     The source detector distance.
+  --interactive / --no-interactive
+                                  Show geometry and resulting projection
+                                  images
+  --ball_spec FILE
+  --help                          Show this message and exit.
 ```
 
 ### Running the examples
