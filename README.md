@@ -12,7 +12,7 @@ A phantom generation package for cone beam CT geometries.
 The author of this package is in the process of setting up this
 package for optimal usability. The following has already been completed:
 
-- [ ] Documentation
+- [x] Documentation
     - Documentation has been generated using `make docs`, committed,
         and pushed to GitHub.
 	- GitHub pages have been setup in the project
@@ -21,7 +21,7 @@ package for optimal usability. The following has already been completed:
 	- In `CHANGELOG.md`, a release date has been added to v0.1.0 (change the YYYY-MM-DD).
 	- The release has been marked a release on GitHub.
 	- For more info, see the [Software Release Guide](https://cicwi.github.io/software-guidelines/software-release-guide).
-- [ ] A conda package
+- [x] A conda package
 	- Required packages have been added to `setup.py`, for instance,
 	  ```
 	  requirements = [ ]

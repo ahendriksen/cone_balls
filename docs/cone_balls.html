@@ -165,20 +165,44 @@
 <span id="cone-balls-cone-balls-module"></span><h2>cone_balls.cone_balls module<a class="headerlink" href="#module-cone_balls.cone_balls" title="Permalink to this headline">¶</a></h2>
 <p>Main module.</p>
 <dl class="function">
-<dt id="cone_balls.cone_balls.hello_world">
-<code class="descclassname">cone_balls.cone_balls.</code><code class="descname">hello_world</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/cone_balls/cone_balls.html#hello_world"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#cone_balls.cone_balls.hello_world" title="Permalink to this definition">¶</a></dt>
-<dd><p>Say hello to world.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">Nothing</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">NoneType</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
+<dt id="cone_balls.cone_balls.generate_balls">
+<code class="descclassname">cone_balls.cone_balls.</code><code class="descname">generate_balls</code><span class="sig-paren">(</span><em>num_balls</em>, <em>pos_limit</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/cone_balls/cone_balls.html#generate_balls"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#cone_balls.cone_balls.generate_balls" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="cone_balls.cone_balls.generate_projection_geometry">
+<code class="descclassname">cone_balls.cone_balls.</code><code class="descname">generate_projection_geometry</code><span class="sig-paren">(</span><em>det_spacing</em>, <em>det_shape</em>, <em>num_angles</em>, <em>SOD</em>, <em>SDD</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/cone_balls/cone_balls.html#generate_projection_geometry"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#cone_balls.cone_balls.generate_projection_geometry" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="cone_balls.cone_balls.generate_projections">
+<code class="descclassname">cone_balls.cone_balls.</code><code class="descname">generate_projections</code><span class="sig-paren">(</span><em>pg</em>, <em>ball_pos</em>, <em>ball_radius</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/cone_balls/cone_balls.html#generate_projections"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#cone_balls.cone_balls.generate_projections" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="cone_balls.cone_balls.load_geometry">
+<code class="descclassname">cone_balls.cone_balls.</code><code class="descname">load_geometry</code><span class="sig-paren">(</span><em>geometry_path</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/cone_balls/cone_balls.html#load_geometry"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#cone_balls.cone_balls.load_geometry" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="cone_balls.cone_balls.load_spec">
+<code class="descclassname">cone_balls.cone_balls.</code><code class="descname">load_spec</code><span class="sig-paren">(</span><em>spec_path</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/cone_balls/cone_balls.html#load_spec"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#cone_balls.cone_balls.load_spec" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="cone_balls.cone_balls.project">
+<code class="descclassname">cone_balls.cone_balls.</code><code class="descname">project</code><span class="sig-paren">(</span><em>source_pos</em>, <em>det_pos</em>, <em>det_u</em>, <em>det_v</em>, <em>ball_pos</em>, <em>ball_radius</em>, <em>out_proj_data</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/cone_balls/cone_balls.html#project"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#cone_balls.cone_balls.project" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="cone_balls.cone_balls.save_geometry">
+<code class="descclassname">cone_balls.cone_balls.</code><code class="descname">save_geometry</code><span class="sig-paren">(</span><em>dir</em>, <em>pg</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/cone_balls/cone_balls.html#save_geometry"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#cone_balls.cone_balls.save_geometry" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="cone_balls.cone_balls.save_spec">
+<code class="descclassname">cone_balls.cone_balls.</code><code class="descname">save_spec</code><span class="sig-paren">(</span><em>dir</em>, <em>ball_pos</em>, <em>ball_radius</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/cone_balls/cone_balls.html#save_spec"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#cone_balls.cone_balls.save_spec" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
 
 </div>
 <div class="section" id="module-cone_balls">
@@ -232,7 +256,6 @@
         <script type="text/javascript" src="_static/jquery.js"></script>
         <script type="text/javascript" src="_static/underscore.js"></script>
         <script type="text/javascript" src="_static/doctools.js"></script>
-        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
     
 
   

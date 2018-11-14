@@ -146,15 +146,206 @@
 <span></span><span class="c1"># -*- coding: utf-8 -*-</span>
 
 <span class="sd">&quot;&quot;&quot;Main module.&quot;&quot;&quot;</span>
+<span class="kn">import</span> <span class="nn">click</span>
+<span class="kn">from</span> <span class="nn">tqdm</span> <span class="k">import</span> <span class="n">tqdm</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">astra</span>
+<span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">import</span> <span class="nn">cone_balls_cuda</span> <span class="k">as</span> <span class="nn">cb</span>
+<span class="kn">import</span> <span class="nn">pyqtgraph</span> <span class="k">as</span> <span class="nn">pq</span>
+<span class="kn">import</span> <span class="nn">tifffile</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+<span class="kn">import</span> <span class="nn">pickle</span>
 
-<div class="viewcode-block" id="hello_world"><a class="viewcode-back" href="../../cone_balls.html#cone_balls.cone_balls.hello_world">[docs]</a><span class="k">def</span> <span class="nf">hello_world</span><span class="p">():</span>
-    <span class="sd">&quot;&quot;&quot;Say hello to world.</span>
+<span class="n">torch_options</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;dtype&quot;</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="s2">&quot;device&quot;</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">device</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="s2">&quot;cuda&quot;</span><span class="p">)}</span>
+<span class="n">BATCH</span> <span class="o">=</span> <span class="mi">500</span>
 
-<span class="sd">    :returns: Nothing</span>
-<span class="sd">    :rtype: NoneType</span>
 
+<div class="viewcode-block" id="generate_projection_geometry"><a class="viewcode-back" href="../../cone_balls.html#cone_balls.cone_balls.generate_projection_geometry">[docs]</a><span class="k">def</span> <span class="nf">generate_projection_geometry</span><span class="p">(</span><span class="n">det_spacing</span><span class="p">,</span> <span class="n">det_shape</span><span class="p">,</span> <span class="n">num_angles</span><span class="p">,</span> <span class="n">SOD</span><span class="p">,</span> <span class="n">SDD</span><span class="p">):</span>
+    <span class="n">angles</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="n">num_angles</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+    <span class="n">pg</span> <span class="o">=</span> <span class="n">astra</span><span class="o">.</span><span class="n">create_proj_geom</span><span class="p">(</span>
+        <span class="s2">&quot;cone&quot;</span><span class="p">,</span> <span class="o">*</span><span class="n">det_spacing</span><span class="p">,</span> <span class="o">*</span><span class="n">det_shape</span><span class="p">,</span> <span class="n">angles</span><span class="p">,</span> <span class="n">SOD</span><span class="p">,</span> <span class="n">SDD</span> <span class="o">-</span> <span class="n">SOD</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">astra</span><span class="o">.</span><span class="n">geom_2vec</span><span class="p">(</span><span class="n">pg</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="generate_balls"><a class="viewcode-back" href="../../cone_balls.html#cone_balls.cone_balls.generate_balls">[docs]</a><span class="k">def</span> <span class="nf">generate_balls</span><span class="p">(</span><span class="n">num_balls</span><span class="p">,</span> <span class="n">pos_limit</span><span class="p">):</span>
+    <span class="n">ball_pos</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.5</span> <span class="o">-</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="n">num_balls</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="o">**</span><span class="n">torch_options</span><span class="p">))</span> <span class="o">*</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="n">pos_limit</span>
+    <span class="n">ball_radius</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="n">num_balls</span><span class="p">,</span> <span class="o">**</span><span class="n">torch_options</span><span class="p">)</span> <span class="o">*</span> <span class="mi">10</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">ball_pos</span><span class="p">,</span> <span class="n">ball_radius</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="generate_projections"><a class="viewcode-back" href="../../cone_balls.html#cone_balls.cone_balls.generate_projections">[docs]</a><span class="k">def</span> <span class="nf">generate_projections</span><span class="p">(</span><span class="n">pg</span><span class="p">,</span> <span class="n">ball_pos</span><span class="p">,</span> <span class="n">ball_radius</span><span class="p">):</span>
+    <span class="c1"># Get source position, detector position, detector u position, and</span>
+    <span class="c1"># detector v position in Z, Y, X format ([:, ::-1]).</span>
+    <span class="n">ray_pos</span> <span class="o">=</span> <span class="n">pg</span><span class="p">[</span><span class="s2">&quot;Vectors&quot;</span><span class="p">][:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">][:,</span> <span class="p">::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">det_pos</span> <span class="o">=</span> <span class="n">pg</span><span class="p">[</span><span class="s2">&quot;Vectors&quot;</span><span class="p">][:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">][:,</span> <span class="p">::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">det_u</span> <span class="o">=</span> <span class="n">pg</span><span class="p">[</span><span class="s2">&quot;Vectors&quot;</span><span class="p">][:,</span> <span class="mi">6</span><span class="p">:</span><span class="mi">9</span><span class="p">][:,</span> <span class="p">::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">det_v</span> <span class="o">=</span> <span class="n">pg</span><span class="p">[</span><span class="s2">&quot;Vectors&quot;</span><span class="p">][:,</span> <span class="mi">9</span><span class="p">:</span><span class="mi">12</span><span class="p">][:,</span> <span class="p">::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">det_shape</span> <span class="o">=</span> <span class="p">(</span><span class="n">pg</span><span class="p">[</span><span class="s2">&quot;DetectorRowCount&quot;</span><span class="p">],</span> <span class="n">pg</span><span class="p">[</span><span class="s2">&quot;DetectorColCount&quot;</span><span class="p">])</span>
+
+    <span class="n">ray_pos</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ascontiguousarray</span><span class="p">(</span><span class="n">ray_pos</span><span class="p">),</span> <span class="o">**</span><span class="n">torch_options</span><span class="p">)</span>
+    <span class="n">det_pos</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ascontiguousarray</span><span class="p">(</span><span class="n">det_pos</span><span class="p">),</span> <span class="o">**</span><span class="n">torch_options</span><span class="p">)</span>
+    <span class="n">det_u</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ascontiguousarray</span><span class="p">(</span><span class="n">det_u</span><span class="p">),</span> <span class="o">**</span><span class="n">torch_options</span><span class="p">)</span>
+    <span class="n">det_v</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ascontiguousarray</span><span class="p">(</span><span class="n">det_v</span><span class="p">),</span> <span class="o">**</span><span class="n">torch_options</span><span class="p">)</span>
+
+    <span class="n">num_angles</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">ray_pos</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">num_angles</span><span class="p">,</span> <span class="n">BATCH</span><span class="p">):</span>
+        <span class="c1"># Generate BATCH number of projection images (or n, if there</span>
+        <span class="c1"># are fewer remaining angles)</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">BATCH</span><span class="p">,</span> <span class="n">num_angles</span> <span class="o">-</span> <span class="n">i</span><span class="p">)</span>
+        <span class="n">proj_data</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="o">*</span><span class="n">det_shape</span><span class="p">,</span> <span class="o">**</span><span class="n">torch_options</span><span class="p">)</span>
+        <span class="n">proj_data</span><span class="o">.</span><span class="n">zero_</span><span class="p">()</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">i</span> <span class="o">+</span> <span class="n">n</span><span class="p">)</span>
+        <span class="n">project</span><span class="p">(</span>
+            <span class="n">ray_pos</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span>
+            <span class="n">det_pos</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span>
+            <span class="n">det_u</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span>
+            <span class="n">det_v</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span>
+            <span class="n">ball_pos</span><span class="p">,</span>
+            <span class="n">ball_radius</span><span class="p">,</span>
+            <span class="n">proj_data</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">proj_data</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">():</span>
+            <span class="k">yield</span> <span class="n">p</span>
+
+        <span class="k">del</span> <span class="n">proj_data</span></div>
+
+
+<div class="viewcode-block" id="project"><a class="viewcode-back" href="../../cone_balls.html#cone_balls.cone_balls.project">[docs]</a><span class="k">def</span> <span class="nf">project</span><span class="p">(</span><span class="n">source_pos</span><span class="p">,</span> <span class="n">det_pos</span><span class="p">,</span> <span class="n">det_u</span><span class="p">,</span> <span class="n">det_v</span><span class="p">,</span> <span class="n">ball_pos</span><span class="p">,</span> <span class="n">ball_radius</span><span class="p">,</span> <span class="n">out_proj_data</span><span class="p">):</span>
+    <span class="n">cb</span><span class="o">.</span><span class="n">project_balls</span><span class="p">(</span>
+        <span class="n">source_pos</span><span class="p">,</span> <span class="n">det_pos</span><span class="p">,</span> <span class="n">det_u</span><span class="p">,</span> <span class="n">det_v</span><span class="p">,</span> <span class="n">ball_pos</span><span class="p">,</span> <span class="n">ball_radius</span><span class="p">,</span> <span class="n">out_proj_data</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">out_proj_data</span></div>
+
+
+<div class="viewcode-block" id="save_spec"><a class="viewcode-back" href="../../cone_balls.html#cone_balls.cone_balls.save_spec">[docs]</a><span class="k">def</span> <span class="nf">save_spec</span><span class="p">(</span><span class="nb">dir</span><span class="p">,</span> <span class="n">ball_pos</span><span class="p">,</span> <span class="n">ball_radius</span><span class="p">):</span>
+    <span class="n">num_balls</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">ball_radius</span><span class="p">)</span>
+    <span class="n">spec_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">dir</span><span class="p">,</span> <span class="s2">&quot;cone_balls_spec.txt&quot;</span><span class="p">)</span>
+    <span class="n">spec</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">ball_pos</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">ball_radius</span><span class="p">,</span> <span class="mi">1</span><span class="p">)))</span>
+    <span class="n">header</span> <span class="o">=</span> <span class="n">f</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">    This file was generated with cone_balls.</span>
+
+<span class="s2">    There were </span><span class="si">{num_balls}</span><span class="s2"> balls projected onto a cone beam geometry.</span>
+
+<span class="s2">    To load this file, execute:</span>
+<span class="s2">    ---------------------------</span>
+<span class="s2">    &gt;&gt;&gt; ball_spec = np.loadtxt(file_path)</span>
+<span class="s2">    &gt;&gt;&gt; ball_pos = ball_spec[:, :3]</span>
+<span class="s2">    &gt;&gt;&gt; ball_radius = ball_spec[:, 3]</span>
+<span class="s2">    &quot;&quot;&quot;</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">savetxt</span><span class="p">(</span><span class="n">spec_path</span><span class="p">,</span> <span class="n">spec</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="n">header</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="load_spec"><a class="viewcode-back" href="../../cone_balls.html#cone_balls.cone_balls.load_spec">[docs]</a><span class="k">def</span> <span class="nf">load_spec</span><span class="p">(</span><span class="n">spec_path</span><span class="p">):</span>
+    <span class="n">ball_spec</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">loadtxt</span><span class="p">(</span><span class="n">spec_path</span><span class="p">)</span>
+    <span class="n">ball_pos</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">ball_spec</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="o">**</span><span class="n">torch_options</span><span class="p">)</span>
+    <span class="n">ball_radius</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">ball_spec</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">],</span> <span class="o">**</span><span class="n">torch_options</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">ball_pos</span><span class="p">,</span> <span class="n">ball_radius</span></div>
+
+
+<div class="viewcode-block" id="save_geometry"><a class="viewcode-back" href="../../cone_balls.html#cone_balls.cone_balls.save_geometry">[docs]</a><span class="k">def</span> <span class="nf">save_geometry</span><span class="p">(</span><span class="nb">dir</span><span class="p">,</span> <span class="n">pg</span><span class="p">):</span>
+    <span class="n">geom_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">dir</span><span class="p">,</span> <span class="s2">&quot;astra_geometry.pickle&quot;</span><span class="p">)</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">geom_path</span><span class="p">,</span> <span class="s2">&quot;wb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">handle</span><span class="p">:</span>
+        <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">pg</span><span class="p">,</span> <span class="n">handle</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="load_geometry"><a class="viewcode-back" href="../../cone_balls.html#cone_balls.cone_balls.load_geometry">[docs]</a><span class="k">def</span> <span class="nf">load_geometry</span><span class="p">(</span><span class="n">geometry_path</span><span class="p">):</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">geometry_path</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">handle</span><span class="p">:</span>
+        <span class="n">pg</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">pg</span></div>
+
+
+<span class="nd">@click</span><span class="o">.</span><span class="n">command</span><span class="p">()</span>
+<span class="nd">@click</span><span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s2">&quot;--num_balls&quot;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Number of balls to generate.&quot;</span><span class="p">)</span>
+<span class="nd">@click</span><span class="o">.</span><span class="n">option</span><span class="p">(</span>
+    <span class="s2">&quot;--ball_limit&quot;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;The maximal distance from the origin of a ball&quot;</span>
+<span class="p">)</span>
+<span class="nd">@click</span><span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s2">&quot;--num_angles&quot;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">1500</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Number of angles.&quot;</span><span class="p">)</span>
+<span class="nd">@click</span><span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s2">&quot;--det_row_count&quot;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">700</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Detector row count.&quot;</span><span class="p">)</span>
+<span class="nd">@click</span><span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s2">&quot;--det_col_count&quot;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">700</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Detector column count.&quot;</span><span class="p">)</span>
+<span class="nd">@click</span><span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s2">&quot;--pixel_size&quot;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;The detector pixel size.&quot;</span><span class="p">)</span>
+<span class="nd">@click</span><span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s2">&quot;--SOD&quot;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mf">700.0</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;The source object distance.&quot;</span><span class="p">)</span>
+<span class="nd">@click</span><span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s2">&quot;--SDD&quot;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mf">700.0</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;The source detector distance.&quot;</span><span class="p">)</span>
+<span class="nd">@click</span><span class="o">.</span><span class="n">option</span><span class="p">(</span>
+    <span class="s2">&quot;--interactive/--no-interactive&quot;</span><span class="p">,</span>
+    <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Show geometry and resulting projection images&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="nd">@click</span><span class="o">.</span><span class="n">option</span><span class="p">(</span>
+    <span class="s2">&quot;--ball_spec&quot;</span><span class="p">,</span>
+    <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="nb">type</span><span class="o">=</span><span class="n">click</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span>
+        <span class="n">file_okay</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">dir_okay</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">resolve_path</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">allow_dash</span><span class="o">=</span><span class="kc">False</span>
+    <span class="p">),</span>
+<span class="p">)</span>
+<span class="nd">@click</span><span class="o">.</span><span class="n">argument</span><span class="p">(</span>
+    <span class="s2">&quot;dir&quot;</span><span class="p">,</span>
+    <span class="nb">type</span><span class="o">=</span><span class="n">click</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span>
+        <span class="n">file_okay</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">dir_okay</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">resolve_path</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">allow_dash</span><span class="o">=</span><span class="kc">False</span>
+    <span class="p">),</span>
+<span class="p">)</span>
+<span class="k">def</span> <span class="nf">main</span><span class="p">(</span>
+    <span class="n">num_balls</span><span class="p">,</span>
+    <span class="n">ball_limit</span><span class="p">,</span>
+    <span class="n">num_angles</span><span class="p">,</span>
+    <span class="n">det_row_count</span><span class="p">,</span>
+    <span class="n">det_col_count</span><span class="p">,</span>
+    <span class="n">pixel_size</span><span class="p">,</span>
+    <span class="n">sod</span><span class="p">,</span>
+    <span class="n">sdd</span><span class="p">,</span>
+    <span class="n">interactive</span><span class="p">,</span>
+    <span class="n">ball_spec</span><span class="p">,</span>
+    <span class="nb">dir</span><span class="p">,</span>
+<span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;cone_balls generates ball phantoms for cone beam geometries</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Hello world&quot;</span><span class="p">)</span></div>
+    <span class="n">click</span><span class="o">.</span><span class="n">echo</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;Writing in </span><span class="si">{dir}</span><span class="s2">!&quot;</span><span class="p">)</span>
+
+    <span class="n">pg</span> <span class="o">=</span> <span class="n">generate_projection_geometry</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">pixel_size</span><span class="p">,</span> <span class="n">pixel_size</span><span class="p">),</span> <span class="p">(</span><span class="n">det_row_count</span><span class="p">,</span> <span class="n">det_col_count</span><span class="p">),</span> <span class="n">num_angles</span><span class="p">,</span> <span class="n">sod</span><span class="p">,</span> <span class="n">sdd</span>
+    <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">ball_spec</span><span class="p">:</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;Not generating balls, using </span><span class="si">{ball_spec}</span><span class="s2"> file.&quot;</span><span class="p">)</span>
+        <span class="n">ball_pos</span><span class="p">,</span> <span class="n">ball_radius</span> <span class="o">=</span> <span class="n">load_spec</span><span class="p">(</span><span class="n">ball_spec</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;Generating </span><span class="si">{num_balls}</span><span class="s2"> balls.&quot;</span><span class="p">)</span>
+        <span class="n">ball_pos</span><span class="p">,</span> <span class="n">ball_radius</span> <span class="o">=</span> <span class="n">generate_balls</span><span class="p">(</span><span class="n">num_balls</span><span class="p">,</span> <span class="n">ball_limit</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">interactive</span><span class="p">:</span>
+        <span class="k">pass</span>  <span class="c1"># Perhaps show geometry here in the future?</span>
+
+    <span class="n">proj_data</span> <span class="o">=</span> <span class="n">generate_projections</span><span class="p">(</span><span class="n">pg</span><span class="p">,</span> <span class="n">ball_pos</span><span class="p">,</span> <span class="n">ball_radius</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">interactive</span><span class="p">:</span>
+        <span class="n">proj_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">proj_data</span><span class="p">))</span>
+        <span class="n">app</span> <span class="o">=</span> <span class="n">pq</span><span class="o">.</span><span class="n">mkQApp</span><span class="p">()</span>
+        <span class="n">pq</span><span class="o">.</span><span class="n">ImageView</span><span class="o">.</span><span class="n">setImage</span>
+        <span class="n">pq</span><span class="o">.</span><span class="n">image</span><span class="p">(</span><span class="n">proj_data</span><span class="p">,</span> <span class="n">axes</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;t&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;x&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">&quot;y&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">})</span>
+        <span class="n">app</span><span class="o">.</span><span class="n">exec_</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">interactive</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="nb">dir</span><span class="p">):</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;</span><span class="si">{dir}</span><span class="s2"> already exists. Overwriting files.&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Save ball positions:</span>
+        <span class="n">save_spec</span><span class="p">(</span><span class="nb">dir</span><span class="p">,</span> <span class="n">ball_pos</span><span class="p">,</span> <span class="n">ball_radius</span><span class="p">)</span>
+        <span class="c1"># Save geometry:</span>
+        <span class="n">save_geometry</span><span class="p">(</span><span class="nb">dir</span><span class="p">,</span> <span class="n">pg</span><span class="p">)</span>
+        <span class="c1"># Save tiff stack:</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span><span class="nb">enumerate</span><span class="p">(</span><span class="n">proj_data</span><span class="p">)):</span>
+            <span class="n">filename</span> <span class="o">=</span> <span class="n">f</span><span class="s2">&quot;scan_</span><span class="si">{i:06d}</span><span class="s2">.tif&quot;</span>
+            <span class="n">path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">dir</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
+            <span class="n">tifffile</span><span class="o">.</span><span class="n">TiffWriter</span><span class="o">.</span><span class="n">save</span>
+            <span class="n">tifffile</span><span class="o">.</span><span class="n">imsave</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;axes&quot;</span><span class="p">:</span> <span class="s2">&quot;XY&quot;</span><span class="p">})</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="n">main</span><span class="p">()</span>
 </pre></div>
 
            </div>
@@ -192,7 +383,6 @@
         <script type="text/javascript" src="../../_static/jquery.js"></script>
         <script type="text/javascript" src="../../_static/underscore.js"></script>
         <script type="text/javascript" src="../../_static/doctools.js"></script>
-        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
     
 
   
