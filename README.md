@@ -2,6 +2,20 @@
 
 A phantom generation package for cone beam CT geometries.
 
+This generator analytically computes a circular cone beam projection
+of a configurable number of (potentially overlapping) solid spheres of
+constant density and varying random radius.
+
+It randomly places the centers of the spheres in a cube of
+configurable size. Where the spheres overlap, their linear attenuation
+coefficients are summed.
+
+The randomly generated ball positions and radii are stored for later
+re-use, as well as the used cone beam geometry (as an ASTRA projection
+geometry).
+
+Cone Balls is GPU accelerated and requires CUDA.
+
 
 * Free software: GNU General Public License v3
 * Documentation: [https://ahendriksen.github.io/cone_balls]
@@ -120,3 +134,6 @@ If you have any issues, questions, or remarks, then please open an issue on GitH
 ## License
 
 This project is licensed under the GNU General Public License v3 - see the [LICENSE.md](LICENSE.md) file for details.
+
+## Acknowledgements
+* To Willem Jan Palenstijn for useful advice and discussion.
