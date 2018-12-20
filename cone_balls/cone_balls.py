@@ -179,7 +179,6 @@ def main(
     if interactive:
         proj_data = np.array(list(proj_data))
         app = pq.mkQApp()
-        pq.ImageView.setImage
         pq.image(proj_data, axes={"t": 0, "x": 2, "y": 1})
         app.exec_()
 
