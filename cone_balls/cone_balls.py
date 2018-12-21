@@ -70,7 +70,8 @@ def generate_projections(pg, ball_pos, ball_radius):
         del proj_data
 
 
-def project(source_pos, det_pos, det_u, det_v, ball_pos, ball_radius, out_proj_data):
+def project(source_pos, det_pos, det_u, det_v, ball_pos, ball_radius,
+            out_proj_data):
     cb.project_balls(
         source_pos, det_pos, det_u, det_v, ball_pos, ball_radius, out_proj_data
     )
@@ -114,10 +115,16 @@ def load_geometry(geometry_path):
     return pg
 
 
-@click.command()
+@click.group()
+def main():
+    pass
+
+
+@main.command()
 @click.option("--num_balls", default=100, help="Number of balls to generate.")
 @click.option(
-    "--ball_limit", default=1, help="The maximal distance from the origin of a ball"
+    "--ball_limit", default=200,
+    help="The maximal distance from the origin of a ball"
 )
 @click.option("--num_angles", default=1500, help="Number of angles.")
 @click.option("--det_row_count", default=700, help="Detector row count.")
@@ -143,7 +150,7 @@ def load_geometry(geometry_path):
         file_okay=False, dir_okay=True, resolve_path=True, allow_dash=False
     ),
 )
-def main(
+def generate(
     num_balls,
     ball_limit,
     num_angles,
@@ -161,7 +168,8 @@ def main(
     click.echo(f"Writing in {dir}!")
 
     pg = generate_projection_geometry(
-        (pixel_size, pixel_size), (det_row_count, det_col_count), num_angles, sod, sdd
+        (pixel_size, pixel_size), (det_row_count, det_col_count),
+        num_angles, sod, sdd
     )
 
     if ball_spec:

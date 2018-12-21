@@ -93,7 +93,17 @@ Cone balls is a command-line utility. It creates a directory with tiff files.
 
 ```
 $ cone_balls --help
-Usage: cone_balls [OPTIONS] DIR
+Usage: cone_balls [OPTIONS] COMMAND [ARGS]...
+
+Options:
+  --help  Show this message and exit.
+
+Commands:
+  bench     Time the generation of cone_balls
+  generate  cone_balls generates ball phantoms for cone beam geometries
+
+$ cone_balls generate --help
+Usage: cone_balls generate [OPTIONS] DIR
 
   cone_balls generates ball phantoms for cone beam geometries
 
@@ -112,6 +122,21 @@ Options:
                                   images
   --ball_spec FILE
   --help                          Show this message and exit.
+
+$ cone_balls bench --help
+Usage: cone_balls bench [OPTIONS]
+
+  Time the generation of cone_balls
+
+Options:
+  --num_balls INTEGER             Number of balls to generate.
+  --num_angles INTEGER            Number of angles.
+  --det_pix_count INTEGER         Detector column count.
+  --interactive / --no-interactive
+                                  Show geometry and resulting projection
+                                  images
+  --help                          Show this message and exit.
+
 ```
 
 ### Running the examples
