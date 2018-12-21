@@ -4,6 +4,6 @@
 
 __author__ = """Allard Hendriksen"""
 __email__ = 'allard.hendriksen@cwi.nl'
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 
 from .cone_balls import main
