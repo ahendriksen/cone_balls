@@ -133,32 +133,49 @@ cuda_project_balls0(dTensor2R ray_origin,
     for (int angle=0; angle < num_angles; angle++) {
 	float3 ray_o = load_vec(ray_origin[angle]);
 	float3 det_o = load_vec(detector_center[angle]);
-	float3 det_u = load_vec(detector_u[angle]);
-	float3 det_v = load_vec(detector_v[angle]);
+	const float3 det_u = load_vec(detector_u[angle]);
+	const float3 det_v = load_vec(detector_v[angle]);
 
-	// Move detector origin to lowerleft corner from center
-	det_o = det_o - 0.5 * (H * det_v + W * det_u);
-	// Calculate pixel position
-	auto pixel_o = det_o + h * det_v + w * det_u;
-	// Calculate ray direction
-	auto ray_dir = pixel_o - ray_o;
+	const float3 det_u_half = 0.5f * det_u;
+	const float3 det_v_half = 0.5f * det_v;
 
+	// Move detector origin to center of current pixel from
+	// center of detector.
+	det_o = det_o - ((H - 1) * det_v_half + (W - 1) * det_u_half);
+
+	const float3 det_u_quart = 0.5f * det_u_half;
+	const float3 det_v_quart = 0.5f * det_v_half;
 	float y = 0;
-	for (int ball=0; ball < num_balls; ball++) {
-	    float3 ball_o = load_vec(ball_origin[ball]);
-	    float ball_r = ball_radius[ball];
+
+	{
+	    // // Calculate pixel position
+	    // auto pixel_o = det_o + (4 * h) * det_v_quart + (4 * w) * det_u_quart;
+	    // // Calculate ray direction
+	    // auto ray_dir = pixel_o - ray_o;
 
 
+	    // for (int ball=0; ball < num_balls; ball++) {
+	    // 	float3 ball_o = load_vec(ball_origin[ball]);
+	    // 	float ball_r = ball_radius[ball];
 
-
-
-
+	    // 	y += intersect_ball(ray_o, ray_dir, ball_o, ball_r);
+	    // }
 	}
+	for (int i = -1; i < 2; i+=2) {
+	    for (int j = -1; j < 2; j+=2) {
+		auto pixel_o = det_o + (4 * h + i) * det_v_quart + (4 * w + j) * det_u_quart;
+		// Calculate ray direction
+		auto ray_dir = pixel_o - ray_o;
 
+		for (int ball=0; ball < num_balls; ball++) {
+		    float3 ball_o = load_vec(ball_origin[ball]);
+		    float ball_r = ball_radius[ball];
 
+		    y += intersect_ball(ray_o, ray_dir, ball_o, ball_r) / 4.0f;
 		}
 	    }
 	}
+	out_projections[angle][h][w] = y;
     }
 }
 
