@@ -28,7 +28,7 @@ def generate_projection_geometry(det_spacing, det_shape, num_angles, SOD, SDD):
 
 def generate_balls(num_balls, pos_limit):
     ball_pos = (0.5 - torch.rand(num_balls, 3, **torch_options)) * 2.0 * pos_limit
-    ball_radius = torch.rand(num_balls, **torch_options) * 10
+    ball_radius = torch.rand(num_balls, **torch_options) * pos_limit / 10
     return (ball_pos, ball_radius)
 
 
