@@ -31,10 +31,6 @@ __device__ float3 operator+(const float &a, const float3 &b) {
     return make_float3(a+b.x, a+b.y, a+b.z);
 }
 
-__device__ float3 operator+(const double &a, const float3 &b) {
-    return make_float3(a+b.x, a+b.y, a+b.z);
-}
-
 __device__ float3 operator-(const float3 &a, const float3 &b) {
     return make_float3(a.x-b.x, a.y-b.y, a.z-b.z);
 }
@@ -44,10 +40,6 @@ __device__ float3 operator-(const int &a, const float3 &b) {
 }
 
 __device__ float3 operator-(const float &a, const float3 &b) {
-    return make_float3(a-b.x, a-b.y, a-b.z);
-}
-
-__device__ float3 operator-(const double &a, const float3 &b) {
     return make_float3(a-b.x, a-b.y, a-b.z);
 }
 
@@ -63,9 +55,6 @@ __device__ float3 operator*(const float &a, const float3 &b) {
     return make_float3(a*b.x, a*b.y, a*b.z);
 }
 
-__device__ float3 operator*(const double &a, const float3 &b) {
-    return make_float3(a*b.x, a*b.y, a*b.z);
-}
 
 template <typename SuperTensor>
 __inline__ __device__
@@ -97,7 +86,7 @@ float intersect_ball(float3 ray_origin,
 	    // the intersection of the ray with the ball.
 	    auto int_square = ball_radius * ball_radius - d;
 	    if (int_square > 0) {
-		auto intersection_len = 2 * sqrt(int_square);
+		auto intersection_len = 2.0f * sqrt(int_square);
 		return intersection_len;
 	    } else {
 		return 0;
@@ -187,7 +176,7 @@ at::Tensor cuda_project_balls(at::Tensor ray_origin,      // dim: num_angles * 3
 			      at::Tensor detector_center, // dim: num_angles * 3
 			      at::Tensor detector_u,	  // dim: num_angles * 3
 			      at::Tensor detector_v,	  // dim: num_angles * 3
-			      at::Tensor ball_origin,     // dim: num_balls  * 3
+ 			      at::Tensor ball_origin,     // dim: num_balls  * 3
 			      at::Tensor ball_radius,     // dim: num_balls
 			      at::Tensor out_projections) // dim: num_angles * num_v_pixels * num_u_pixels
 {
