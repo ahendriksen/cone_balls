@@ -80,6 +80,13 @@ setup(
                 'cone_balls/projector.cpp',
                 'cone_balls/projector_cuda.cu',
             ],
+            extra_compile_args={'cxx': [],
+                                'nvcc': [
+                                    '--maxrregcount', '32',
+                                    '--ptxas-options=-v',
+                                    '-arch', 'sm_60',
+                                    '-lineinfo',
+                                ]},
         ),
     ],
     cmdclass={
