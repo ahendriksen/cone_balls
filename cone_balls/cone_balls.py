@@ -208,6 +208,96 @@ def generate(
 
 @main.command()
 @click.option("--num_balls", default=100, help="Number of balls to generate.")
+@click.option(
+    "--ball_limit", default=0.25,
+    help="The maximal distance from the origin of a ball"
+)
+@click.option("--num_angles", default=100, help="Number of angles.")
+@click.option("--det_row_count", default=1000, help="Detector row count.")
+@click.option("--det_col_count", default=1000, help="Detector column count.")
+@click.option("--pixel_size", default=1.2e-3, help="The detector pixel size.")
+@click.option("--SOD", default=2.0, help="The source object distance.")
+@click.option("--SDD", default=2.0, help="The source detector distance.")
+@click.option(
+    "--interactive/--no-interactive",
+    default=False,
+    help="Show geometry and resulting projection images",
+)
+@click.option(
+    "--ball_spec",
+    default=None,
+    type=click.Path(
+        file_okay=True, dir_okay=False, resolve_path=True, allow_dash=False
+    ),
+)
+@click.argument(
+    "dir",
+    type=click.Path(
+        file_okay=False, dir_okay=True, resolve_path=True, allow_dash=False
+    ),
+)
+def foam(
+    num_balls,
+    ball_limit,
+    num_angles,
+    det_row_count,
+    det_col_count,
+    pixel_size,
+    sod,
+    sdd,
+    interactive,
+    ball_spec,
+    dir,
+):
+    """cone_balls generates ball phantoms for cone beam geometries
+    """
+    click.echo(f"Writing in {dir}!")
+
+    pg = generate_projection_geometry(
+        (pixel_size, pixel_size), (det_row_count, det_col_count),
+        num_angles, sod, sdd
+    )
+
+    if ball_spec:
+        logging.info(f"Not generating balls, using {ball_spec} file.")
+        ball_pos, ball_radius = load_spec(ball_spec)
+    else:
+        logging.info(f"Generating {num_balls} balls.")
+        ball_pos, ball_radius = generate_balls(num_balls, ball_limit)
+
+    foam_pos = torch.zeros(1, 3, **torch_options)
+    foam_radius = torch.full((1,), 0.5, **torch_options)
+
+    if interactive:
+        pass  # Perhaps show geometry here in the future?
+
+    ball_data = generate_projections(pg, ball_pos, ball_radius)
+    foam_data = generate_projections(pg, foam_pos, foam_radius)
+
+    if interactive:
+        proj_data = np.array(list(foam_data)) - np.array(list(ball_data))
+        app = pq.mkQApp()
+        pq.image(proj_data, axes={"t": 0, "x": 2, "y": 1})
+        app.exec_()
+
+    if not interactive:
+        if os.path.exists(dir):
+            warnings.warn(f"{dir} already exists. Overwriting files.")
+
+        # Save ball positions:
+        save_spec(dir, ball_pos, ball_radius)
+        # Save geometry:
+        save_geometry(dir, pg)
+        # Save tiff stack:
+        for i, (ball, foam) in tqdm(enumerate(zip(ball_data, foam_data))):
+            filename = f"scan_{i:06d}.tif"
+            path = os.path.join(dir, filename)
+            p = foam - ball
+            tifffile.imsave(path, p, metadata={"axes": "XY"})
+
+
+@main.command()
+@click.option("--num_balls", default=100, help="Number of balls to generate.")
 @click.option("--num_angles", default=1500, help="Number of angles.")
 @click.option("--det_pix_count", default=700, help="Detector column count.")
 @click.option(
