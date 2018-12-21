@@ -10,18 +10,18 @@ source:
     path: ../
 
 build:
-    number: '0'
+    number: '1'
 
 requirements:
     build:
         - python
         - setuptools
-        - pytorch>=0.4.1
+        - pytorch==0.4.1
         - torchvision
         - cuda92
     run:
         - python
-        - pytorch>=0.4.1
+        - pytorch==0.4.1
         # dependencies are defined in setup.py
         {% for dep in data['install_requires'] %}
         - {{ dep.lower() }}
