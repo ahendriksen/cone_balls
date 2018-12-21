@@ -206,5 +206,48 @@ def generate(
             tifffile.imsave(path, p, metadata={"axes": "XY"})
 
 
+@main.command()
+@click.option("--num_balls", default=100, help="Number of balls to generate.")
+@click.option("--num_angles", default=1500, help="Number of angles.")
+@click.option("--det_pix_count", default=700, help="Detector column count.")
+@click.option(
+    "--interactive/--no-interactive",
+    default=False,
+    help="Show geometry and resulting projection images",
+)
+def bench(
+    num_balls,
+    num_angles,
+    det_pix_count,
+    interactive,
+):
+    """Time the generation of cone_balls
+    """
+
+    ball_limit = 200
+    pixel_size = 700 / det_pix_count
+    sod = 700
+    sdd = 700
+
+    pg = generate_projection_geometry((pixel_size, pixel_size),
+                                      (det_pix_count, det_pix_count),
+                                      num_angles, sod, sdd)
+
+    logging.info(f"Generating {num_balls} balls.")
+    ball_pos, ball_radius = generate_balls(num_balls, ball_limit)
+
+    if interactive:
+        pass  # Perhaps show geometry here in the future?
+
+    proj_data = generate_projections(pg, ball_pos, ball_radius)
+
+    proj_data = np.array(list(proj_data))
+
+    if interactive:
+        app = pq.mkQApp()
+        pq.image(proj_data, axes={"t": 0, "x": 2, "y": 1})
+        app.exec_()
+
+
 if __name__ == "__main__":
     main()
