@@ -26,6 +26,25 @@ def generate_projection_geometry(det_spacing, det_shape, num_angles, SOD, SDD):
     return astra.geom_2vec(pg)
 
 
+def move_source(pg, offset):
+    ret = pg.copy()
+    ret["Vectors"] = np.copy(ret["Vectors"])
+    src_z = ret["Vectors"][:, 2]
+
+    src_z += offset
+
+    return ret
+
+
+def move_detector(pg, offset):
+    ret = pg.copy()
+    ret["Vectors"] = np.copy(ret["Vectors"])
+    det_z = ret["Vectors"][:, 5]
+
+    det_z += offset
+    return ret
+
+
 def generate_balls(num_balls, pos_limit):
     ball_pos = (0.5 - torch.rand(num_balls, 3, **torch_options)) * 2.0 * pos_limit
     ball_radius = torch.rand(num_balls, **torch_options) * pos_limit / 10
@@ -218,6 +237,7 @@ def generate(
 @click.option("--pixel_size", default=1.2e-3, help="The detector pixel size.")
 @click.option("--SOD", default=2.0, help="The source object distance.")
 @click.option("--SDD", default=2.0, help="The source detector distance.")
+@click.option("--Z", default=0.0, help="The Z-offset of source and detector.")
 @click.option(
     "--interactive/--no-interactive",
     default=False,
@@ -245,6 +265,7 @@ def foam(
     pixel_size,
     sod,
     sdd,
+    z,
     interactive,
     ball_spec,
     dir,
@@ -257,6 +278,9 @@ def foam(
         (pixel_size, pixel_size), (det_row_count, det_col_count),
         num_angles, sod, sdd
     )
+
+    pg = move_source(pg, z)
+    pg = move_detector(pg, z)
 
     if ball_spec:
         logging.info(f"Not generating balls, using {ball_spec} file.")
