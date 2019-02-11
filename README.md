@@ -91,7 +91,7 @@ pip install -e .
 
 Cone balls is a command-line utility. It creates a directory with tiff files.
 
-```
+``` bash
 $ cone_balls --help
 Usage: cone_balls [OPTIONS] COMMAND [ARGS]...
 
@@ -105,7 +105,12 @@ Commands:
 $ cone_balls generate --help
 Usage: cone_balls generate [OPTIONS] DIR
 
-  cone_balls generates ball phantoms for cone beam geometries
+  generate generates cone-beam projections of ball phantoms
+
+  By default - 100 balls are randomly generated - 1500 projections are
+  computed on a 700 x 700 detector with pixel size 1.0 x 1.0 - The source-
+  object distance and the source-detector distance are 700.0, meaning   that
+  the detector is centered on the origin and rotates through the object.
 
 Options:
   --num_balls INTEGER             Number of balls to generate.
@@ -117,6 +122,33 @@ Options:
   --pixel_size FLOAT              The detector pixel size.
   --SOD FLOAT                     The source object distance.
   --SDD FLOAT                     The source detector distance.
+  --interactive / --no-interactive
+                                  Show geometry and resulting projection
+                                  images
+  --ball_spec FILE
+  --help                          Show this message and exit.
+
+$ cone_balls foam --help
+Usage: cone_balls foam [OPTIONS] DIR
+
+  foam generates cone-beam projections of a foam ball phantom
+
+  The foam ball has a radius of 0.5 and is centered on the origin. Bubbles
+  can be removed from this foam phantom. The location and size of these
+  bubbles can either be supplied using the --ball_spec option, or randomly
+  generated.
+
+Options:
+  --num_balls INTEGER             Number of balls to generate.
+  --ball_limit FLOAT              The maximal distance from the origin of a
+                                  ball
+  --num_angles INTEGER            Number of angles.
+  --det_row_count INTEGER         Detector row count.
+  --det_col_count INTEGER         Detector column count.
+  --pixel_size FLOAT              The detector pixel size.
+  --SOD FLOAT                     The source object distance.
+  --SDD FLOAT                     The source detector distance.
+  --Z FLOAT                       The Z-offset of source and detector.
   --interactive / --no-interactive
                                   Show geometry and resulting projection
                                   images
@@ -139,10 +171,53 @@ Options:
 
 ```
 
-### Running the examples
 
-To learn more about the functionality of the package check out our
-examples folder.
+### An example run
+
+First generate projection data using cone_balls:
+```
+mkdir -p example
+cone_balls generate --num_balls 10 --num_angles 50 example
+```
+
+Start a python console and run:
+``` python
+import astra
+import astra.experimental
+import numpy as np
+from pathlib import Path
+import tifffile
+import pickle
+
+# Load data
+tiffs = [tifffile.imread(str(p)) for p in sorted(Path("example/").glob("*.tif"))]
+# Put projection data in [Y, Angle, X] order
+proj_data = np.array(tiffs).swapaxes(0, 1)
+
+# Load projection geometry
+pg =  pickle.load(open("example/astra_geometry.pickle", "rb"))
+# Create astra projection data
+p_id = astra.data3d.create('-proj3d', pg, proj_data)
+
+vg = {'option': {'WindowMinX': -350, 'WindowMaxX': 350,
+                 'WindowMinY': -350, 'WindowMaxY': 350,
+                 'WindowMinZ': -350, 'WindowMaxZ': 350},
+      'GridRowCount': 250,
+      'GridColCount': 250,
+      'GridSliceCount': 250
+      }
+v_id = astra.data3d.create('-vol', vg)
+
+projector = astra.create_projector("cuda3d", pg, vg)
+astra.experimental.accumulate_FDK(projector, v_id, p_id)
+
+# Display volume data
+import pyqtgraph as pq
+app = pq.mkQApp()
+pq.image(astra.data3d.get_shared(v_id))
+app.exec_()
+```
+
 
 ## Authors and contributors
 

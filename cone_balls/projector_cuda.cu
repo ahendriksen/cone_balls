@@ -128,8 +128,9 @@ cuda_project_balls0(dTensor2R ray_origin,
 	const float3 det_u_half = 0.5f * det_u;
 	const float3 det_v_half = 0.5f * det_v;
 
-	// Move detector origin to center of current pixel from
-	// center of detector.
+	// The detector origin is at the center of the detector. Move
+	// detector origin to the center of the left-bottom corner
+	// pixel of detector.
 	det_o = det_o - ((H - 1) * det_v_half + (W - 1) * det_u_half);
 
 	const float3 det_u_quart = 0.5f * det_u_half;

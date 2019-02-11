@@ -134,6 +134,18 @@ def load_geometry(geometry_path):
     return pg
 
 
+def display_projections(proj_data):
+    app = pq.mkQApp()
+    # Flip the image vertically. Pyqtgraph displays the first row of
+    # the image on top. Astra expects the first row of the image to be
+    # on the bottom of the detector (in the negative direction of the
+    # v vector).
+    proj_data = proj_data[:, ::-1, :]
+    pq.image(proj_data, axes={"t": 0, "x": 2, "y": 1},
+             title="Cone balls: projection data")
+    app.exec_()
+
+
 @click.group()
 def main():
     pass
@@ -182,7 +194,13 @@ def generate(
     ball_spec,
     dir,
 ):
-    """cone_balls generates ball phantoms for cone beam geometries
+    """generate generates cone-beam projections of ball phantoms
+
+    By default
+    - 100 balls are randomly generated
+    - 1500 projections are computed on a 700 x 700 detector with pixel size 1.0 x 1.0
+    - The source-object distance and the source-detector distance are 700.0, meaning
+      that the detector is centered on the origin and rotates through the object.
     """
     click.echo(f"Writing in {dir}!")
 
@@ -205,9 +223,7 @@ def generate(
 
     if interactive:
         proj_data = np.array(list(proj_data))
-        app = pq.mkQApp()
-        pq.image(proj_data, axes={"t": 0, "x": 2, "y": 1})
-        app.exec_()
+        display_projections(proj_data)
 
     if not interactive:
         if os.path.exists(dir):
@@ -270,7 +286,13 @@ def foam(
     ball_spec,
     dir,
 ):
-    """cone_balls generates ball phantoms for cone beam geometries
+    """foam generates cone-beam projections of a foam ball phantom
+
+    The foam ball has a radius of 0.5 and is centered on the origin.
+    Bubbles can be removed from this foam phantom.
+    The location and size of these bubbles can either be supplied
+    using the --ball_spec option, or randomly generated.
+
     """
     click.echo(f"Writing in {dir}!")
 
@@ -300,9 +322,7 @@ def foam(
 
     if interactive:
         proj_data = np.array(list(foam_data)) - np.array(list(ball_data))
-        app = pq.mkQApp()
-        pq.image(proj_data, axes={"t": 0, "x": 2, "y": 1})
-        app.exec_()
+        display_projections(proj_data)
 
     if not interactive:
         if os.path.exists(dir):
@@ -358,9 +378,7 @@ def bench(
     proj_data = np.array(list(proj_data))
 
     if interactive:
-        app = pq.mkQApp()
-        pq.image(proj_data, axes={"t": 0, "x": 2, "y": 1})
-        app.exec_()
+        display_projections(proj_data)
 
 
 if __name__ == "__main__":
