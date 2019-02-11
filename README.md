@@ -18,49 +18,8 @@ Cone Balls is GPU accelerated and requires CUDA.
 
 
 * Free software: GNU General Public License v3
-* Documentation: [https://ahendriksen.github.io/cone_balls]
+* [Documentation](https://ahendriksen.github.io/cone_balls) is currently incomplete.
 
-
-## Readiness
-
-The author of this package is in the process of setting up this
-package for optimal usability. The following has already been completed:
-
-- [x] Documentation
-    - Documentation has been generated using `make docs`, committed,
-        and pushed to GitHub.
-	- GitHub pages have been setup in the project
-      [Settings](/settings) with "master branch /docs folder".
-- [ ] An initial release
-	- In `CHANGELOG.md`, a release date has been added to v0.1.0 (change the YYYY-MM-DD).
-	- The release has been marked a release on GitHub.
-	- For more info, see the [Software Release Guide](https://cicwi.github.io/software-guidelines/software-release-guide).
-- [x] A conda package
-	- Required packages have been added to `setup.py`, for instance,
-	  ```
-	  requirements = [ ]
-	  ```
-	  Has been replaced by
-	  ```
-	  requirements = [
-	      'sacred>=0.7.2'
-      ]
-      ```
-	- All "conda channels" that are required for building and
-      installing the package have been added to the
-      `Makefile`. Specifically, replace
-	  ```
-      conda_package: install_dev
-      	conda build conda/
-      ```
-	  by
-	  ```
-      conda_package: install_dev
-      	conda build conda/ -c some-channel -c some-other-channel
-      ```
-    - Conda packages have been built successfully with `make conda_package`.
-	- These conda packages have been uploaded to [Anaconda](https://anaconda.org).
-	- The installation instructions (below) have been updated.
 
 ## Getting Started
 
@@ -91,7 +50,7 @@ pip install -e .
 
 Cone balls is a command-line utility. It creates a directory with tiff files.
 
-``` bash
+``` shell
 $ cone_balls --help
 Usage: cone_balls [OPTIONS] COMMAND [ARGS]...
 
@@ -218,10 +177,16 @@ pq.image(astra.data3d.get_shared(v_id))
 app.exec_()
 ```
 
+The display of data might require that you install `pyqtgraph`. This
+package can be installed by executing
+
+``` shell
+conda install pyqtgraph
+```
 
 ## Authors and contributors
 
-* **Allard Hendriksen ** - *Initial work*
+* **Allard Hendriksen** - *Initial work*
 
 See also the list of [contributors](https://github.com/ahendriksen/cone_balls/contributors) who participated in this project.
 
