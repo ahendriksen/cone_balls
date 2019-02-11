@@ -6,12 +6,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
-- <insert-features-not-in-a-release-yet>
+- Add --Z option to foam command to move source and detector up.
+- Add example code to README.md to load cone_balls data.
 ### Fixed
-- <insert-bugs-fixed-not-in-a-release-yet>
+- The --interactive option now correctly displays projections upside
+  up instead of upside down.
 
-## 0.1.0 - YYYY-MM-DD
+## [0.2.1] - 2018-12-21
+### Added
+- foam command to generate foam bubble artifacts.
+
+## [0.2.0] - 2018-12-21
+### Added
+- Add a foam command to generate foam bubble artifacts.
+- Add a benchmark command
+### fixed
+- Improve performance by using fewer CUDA registers
+
+
+## 0.1.0 - 2018-11-14
 ### Added
 - Initial release.
 
-[Unreleased]: https://www.github.com/ahendriksen/cone_balls/compare/v0.1.0...develop
+[Unreleased]: https://www.github.com/ahendriksen/cone_balls/compare/v0.2.1...HEAD
+[0.2.1]: https://www.github.com/ahendriksen/cone_balls/compare/v0.2.0...v0.2.1
+[0.2.0]: https://www.github.com/ahendriksen/cone_balls/compare/v0.1.0...v0.2.0
