@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+### Fixed
+
+## [0.2.2] - 2019-05-09
+### Added
 - Add --Z option to foam command to move source and detector up.
 - Add example code to README.md to load cone_balls data.
 ### Fixed
@@ -28,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial release.
 
-[Unreleased]: https://www.github.com/ahendriksen/cone_balls/compare/v0.2.1...HEAD
+[Unreleased]: https://www.github.com/ahendriksen/cone_balls/compare/v0.2.2...HEAD
+[0.2.2]: https://www.github.com/ahendriksen/cone_balls/compare/v0.2.1...v0.2.2
 [0.2.1]: https://www.github.com/ahendriksen/cone_balls/compare/v0.2.0...v0.2.1
 [0.2.0]: https://www.github.com/ahendriksen/cone_balls/compare/v0.1.0...v0.2.0
