@@ -88,4 +88,5 @@ install_dev:
 	pip install -e .[dev]
 
 conda_package:
-	conda build conda/ -c pytorch -c astra-toolbox/label/dev -c conda-forge
+	conda install conda-build conda-verify -y
+	conda build conda/ -c pytorch -c astra-toolbox/label/dev -c conda-forge -c aahendriksen

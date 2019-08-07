@@ -5,7 +5,10 @@
 
 
 import unittest
-from cone_balls import cone_balls
+import cone_balls.cone_balls as cb
+import pyqtgraph as pq
+import astra
+import numpy as np
 
 
 class TestCone_balls(unittest.TestCase):
@@ -17,5 +20,90 @@ class TestCone_balls(unittest.TestCase):
     def tearDown(self):
         """Tear down test fixtures, if any."""
 
-    def test_000_something(self):
+    def test_move_up(self):
         """Test something."""
+        interactive = True
+        pixel_size = 2.4e-3
+        det_row_count = det_col_count = 500
+        num_angles = 1
+        sod = 10.0
+        sdd = 10.0
+
+        pg = cb.generate_cone_pg(
+            (pixel_size, pixel_size), (det_row_count, det_col_count),
+            num_angles, sod, sdd
+        )
+        ball_pos, ball_radius = cb.generate_balls(1, 1)
+        ball_pos[:] = 0.0
+        ball_radius[:] = 0.01
+
+        proj_data = []
+        for z in np.linspace(0, 0.5, 10):
+            pg_moved = cb.move_detector(pg, z)
+            pg_moved = cb.move_source(pg_moved, z)
+
+            proj_data.append(
+                list(cb.generate_projections(pg_moved, ball_pos, ball_radius))[0]
+            )
+
+        proj_data = np.array(proj_data)
+
+        if interactive:
+            app = pq.mkQApp()
+            # Mark corner of 10x10 pixels, so you can check that
+            # pyqtgraph puts them in the top-left corner.
+            proj_data[:, :10, :10] = -1
+            pq.image(proj_data, axes={"t": 0, "x": 2, "y": 1})
+            app.exec_()
+
+    def test_parallel_move(self):
+        interactive = True
+        pixel_size = 2.4e-3
+        det_row_count = det_col_count = 500
+        num_angles = 1
+
+        pg = cb.generate_parallel_pg(
+            (pixel_size, pixel_size), (det_row_count, det_col_count),
+            num_angles
+        )
+        ball_pos, ball_radius = cb.generate_balls(1, 1)
+        ball_pos[:] = 0.0
+        ball_radius[:] = 0.01
+
+        proj_data = []
+        for z in np.linspace(0, 0.5, 10):
+            proj_data.append(
+                list(cb.generate_projections(pg, ball_pos + z, ball_radius, cone=False))[0]
+            )
+
+        proj_data = np.array(proj_data)
+
+        if interactive:
+            app = pq.mkQApp()
+            # Mark corner of 10x10 pixels, so you can check that
+            # pyqtgraph puts them in the top-left corner.
+            proj_data[:, :10, :10] = -1e-3
+            pq.image(proj_data, axes={"t": 0, "x": 2, "y": 1})
+            app.exec_()
+
+    def test_parallel(self):
+        interactive = True
+        pixel_size = 2.4e-3
+        det_row_count = det_col_count = 500
+        num_angles = 100
+
+        pg = cb.generate_parallel_pg(
+            (pixel_size, pixel_size), (det_row_count, det_col_count),
+            num_angles
+        )
+        ball_pos, ball_radius = cb.generate_balls(100, 1)
+
+        proj_data = np.array(list(cb.generate_projections(pg, ball_pos, ball_radius, cone=False)))
+
+        if interactive:
+            app = pq.mkQApp()
+            # Mark corner of 10x10 pixels, so you can check that
+            # pyqtgraph puts them in the top-left corner.
+            proj_data[:, :10, :10] = -1e-3
+            pq.image(proj_data, axes={"t": 0, "x": 2, "y": 1})
+            app.exec_()

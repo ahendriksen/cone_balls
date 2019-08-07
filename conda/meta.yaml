@@ -11,17 +11,24 @@ source:
 
 build:
     number: '1'
+    script_env:
+      - TMP_NVCC_LOCATION         # Used to store multiple versions of the CUDA toolkit
+    entry_points:
+      - cone_balls=cone_balls:main
 
 requirements:
     build:
+        - {{ compiler('c') }}
+        - {{ compiler('cxx') }}
+    host:
         - python
         - setuptools
-        - pytorch==0.4.1
+        - pytorch==1.1.0
+        - cudatoolkit {{cudatoolkit}}
         - torchvision
-        - cuda92
     run:
         - python
-        - pytorch==0.4.1
+        - pytorch==1.1.0
         # dependencies are defined in setup.py
         {% for dep in data['install_requires'] %}
         - {{ dep.lower() }}

@@ -13,15 +13,24 @@ import os
 import logging
 import warnings
 import pickle
+from pathlib import Path
 
 torch_options = {"dtype": torch.float32, "device": torch.device(type="cuda")}
 BATCH = 500
 
 
-def generate_projection_geometry(det_spacing, det_shape, num_angles, SOD, SDD):
+def generate_cone_pg(det_spacing, det_shape, num_angles, SOD, SDD):
     angles = np.linspace(0, 2 * np.pi, num_angles, False)
     pg = astra.create_proj_geom(
         "cone", *det_spacing, *det_shape, angles, SOD, SDD - SOD
+    )
+    return astra.geom_2vec(pg)
+
+
+def generate_parallel_pg(det_spacing, det_shape, num_angles):
+    angles = np.linspace(0, 2 * np.pi, num_angles, False)
+    pg = astra.create_proj_geom(
+        "parallel3d", *det_spacing, *det_shape, angles
     )
     return astra.geom_2vec(pg)
 
@@ -51,7 +60,7 @@ def generate_balls(num_balls, pos_limit):
     return (ball_pos, ball_radius)
 
 
-def generate_projections(pg, ball_pos, ball_radius):
+def generate_projections(pg, ball_pos, ball_radius, cone=True):
     # Get source position, detector position, detector u position, and
     # detector v position in Z, Y, X format ([:, ::-1]).
     ray_pos = pg["Vectors"][:, 0:3][:, ::-1]
@@ -67,13 +76,14 @@ def generate_projections(pg, ball_pos, ball_radius):
 
     num_angles = len(ray_pos)
 
+    generated_projections = torch.empty(num_angles, *det_shape, dtype=torch.float32).pin_memory()
     for i in range(0, num_angles, BATCH):
         # Generate BATCH number of projection images (or n, if there
         # are fewer remaining angles)
         n = min(BATCH, num_angles - i)
         proj_data = torch.zeros(n, *det_shape, **torch_options)
         proj_data.zero_()
-        idx = range(i, i + n)
+        idx = slice(i, i + n)
         project(
             ray_pos[idx],
             det_pos[idx],
@@ -82,17 +92,18 @@ def generate_projections(pg, ball_pos, ball_radius):
             ball_pos,
             ball_radius,
             proj_data,
+            cone
         )
-        for p in proj_data.cpu().numpy():
-            yield p
-
+        generated_projections[idx] = proj_data.cpu()
         del proj_data
+
+    return generated_projections.numpy()
 
 
 def project(source_pos, det_pos, det_u, det_v, ball_pos, ball_radius,
-            out_proj_data):
+            out_proj_data, cone=True):
     cb.project_balls(
-        source_pos, det_pos, det_u, det_v, ball_pos, ball_radius, out_proj_data
+        source_pos, det_pos, det_u, det_v, ball_pos, ball_radius, out_proj_data, cone
     )
     return out_proj_data
 
@@ -164,6 +175,11 @@ def main():
 @click.option("--SOD", default=700.0, help="The source object distance.")
 @click.option("--SDD", default=700.0, help="The source detector distance.")
 @click.option(
+    "--cone/--parallel",
+    default=True,
+    help="Cone-beam geometry",
+)
+@click.option(
     "--interactive/--no-interactive",
     default=False,
     help="Show geometry and resulting projection images",
@@ -190,6 +206,7 @@ def generate(
     pixel_size,
     sod,
     sdd,
+    cone,
     interactive,
     ball_spec,
     dir,
@@ -202,12 +219,24 @@ def generate(
     - The source-object distance and the source-detector distance are 700.0, meaning
       that the detector is centered on the origin and rotates through the object.
     """
+    dir = Path(dir).expanduser().resolve()
     click.echo(f"Writing in {dir}!")
+    dir.mkdir(exist_ok=True)
 
-    pg = generate_projection_geometry(
-        (pixel_size, pixel_size), (det_row_count, det_col_count),
-        num_angles, sod, sdd
-    )
+    if cone:
+        pg = generate_cone_pg(
+            (pixel_size, pixel_size),
+            (det_row_count, det_col_count),
+            num_angles,
+            sod,
+            sdd
+        )
+    else:
+        pg = generate_parallel_pg(
+            (pixel_size, pixel_size),
+            (det_row_count, det_col_count),
+            num_angles
+        )
 
     if ball_spec:
         logging.info(f"Not generating balls, using {ball_spec} file.")
@@ -219,17 +248,15 @@ def generate(
     if interactive:
         pass  # Perhaps show geometry here in the future?
 
-    proj_data = generate_projections(pg, ball_pos, ball_radius)
+    proj_data = generate_projections(pg, ball_pos, ball_radius, cone=cone)
 
     if interactive:
-        proj_data = np.array(list(proj_data))
+        proj_data = np.array(proj_data, copy=False)
         display_projections(proj_data)
 
     if not interactive:
-        if os.path.exists(dir):
-            warnings.warn(f"{dir} already exists. Overwriting files.")
-
         # Save ball positions:
+        ball_pos, ball_radius = ball_pos.cpu().numpy(), ball_radius.cpu().numpy()
         save_spec(dir, ball_pos, ball_radius)
         # Save geometry:
         save_geometry(dir, pg)
@@ -237,8 +264,7 @@ def generate(
         for i, p in tqdm(enumerate(proj_data)):
             filename = f"scan_{i:06d}.tif"
             path = os.path.join(dir, filename)
-            tifffile.TiffWriter.save
-            tifffile.imsave(path, p, metadata={"axes": "XY"})
+            tifffile.imsave(path, p)
 
 
 @main.command()
@@ -254,6 +280,11 @@ def generate(
 @click.option("--SOD", default=2.0, help="The source object distance.")
 @click.option("--SDD", default=2.0, help="The source detector distance.")
 @click.option("--Z", default=0.0, help="The Z-offset of source and detector.")
+@click.option(
+    "--cone/--parallel",
+    default=True,
+    help="Cone-beam geometry",
+)
 @click.option(
     "--interactive/--no-interactive",
     default=False,
@@ -282,6 +313,7 @@ def foam(
     sod,
     sdd,
     z,
+    cone,
     interactive,
     ball_spec,
     dir,
@@ -294,15 +326,27 @@ def foam(
     using the --ball_spec option, or randomly generated.
 
     """
+    dir = Path(dir).expanduser().resolve()
     click.echo(f"Writing in {dir}!")
+    dir.mkdir(exist_ok=True)
 
-    pg = generate_projection_geometry(
-        (pixel_size, pixel_size), (det_row_count, det_col_count),
-        num_angles, sod, sdd
-    )
-
-    pg = move_source(pg, z)
-    pg = move_detector(pg, z)
+    if cone:
+        pg = generate_cone_pg(
+            (pixel_size, pixel_size),
+            (det_row_count, det_col_count),
+            num_angles,
+            sod,
+            sdd
+        )
+        pg = move_source(pg, z)
+        pg = move_detector(pg, z)
+    else:
+        pg = generate_parallel_pg(
+            (pixel_size, pixel_size),
+            (det_row_count, det_col_count),
+            num_angles
+        )
+        pg = move_detector(pg, z)
 
     if ball_spec:
         logging.info(f"Not generating balls, using {ball_spec} file.")
@@ -317,11 +361,11 @@ def foam(
     if interactive:
         pass  # Perhaps show geometry here in the future?
 
-    ball_data = generate_projections(pg, ball_pos, ball_radius)
-    foam_data = generate_projections(pg, foam_pos, foam_radius)
+    ball_data = generate_projections(pg, ball_pos, ball_radius, cone=cone)
+    foam_data = generate_projections(pg, foam_pos, foam_radius, cone=cone)
 
     if interactive:
-        proj_data = np.array(list(foam_data)) - np.array(list(ball_data))
+        proj_data = foam_data - ball_data
         display_projections(proj_data)
 
     if not interactive:
@@ -329,6 +373,7 @@ def foam(
             warnings.warn(f"{dir} already exists. Overwriting files.")
 
         # Save ball positions:
+        ball_pos, ball_radius = ball_pos.cpu().numpy(), ball_radius.cpu().numpy()
         save_spec(dir, ball_pos, ball_radius)
         # Save geometry:
         save_geometry(dir, pg)
@@ -337,13 +382,18 @@ def foam(
             filename = f"scan_{i:06d}.tif"
             path = os.path.join(dir, filename)
             p = foam - ball
-            tifffile.imsave(path, p, metadata={"axes": "XY"})
+            tifffile.imsave(path, p)
 
 
 @main.command()
 @click.option("--num_balls", default=100, help="Number of balls to generate.")
 @click.option("--num_angles", default=1500, help="Number of angles.")
 @click.option("--det_pix_count", default=700, help="Detector column count.")
+@click.option(
+    "--cone/--parallel",
+    default=True,
+    help="Cone-beam geometry",
+)
 @click.option(
     "--interactive/--no-interactive",
     default=False,
@@ -353,6 +403,7 @@ def bench(
     num_balls,
     num_angles,
     det_pix_count,
+    cone,
     interactive,
 ):
     """Time the generation of cone_balls
@@ -363,9 +414,20 @@ def bench(
     sod = 700
     sdd = 700
 
-    pg = generate_projection_geometry((pixel_size, pixel_size),
-                                      (det_pix_count, det_pix_count),
-                                      num_angles, sod, sdd)
+    if cone:
+        pg = generate_cone_pg(
+            (pixel_size, pixel_size),
+            (det_pix_count, det_pix_count),
+            num_angles,
+            sod,
+            sdd
+        )
+    else:
+        pg = generate_parallel_pg(
+            (pixel_size, pixel_size),
+            (det_pix_count, det_pix_count),
+            num_angles
+        )
 
     logging.info(f"Generating {num_balls} balls.")
     ball_pos, ball_radius = generate_balls(num_balls, ball_limit)
@@ -373,9 +435,7 @@ def bench(
     if interactive:
         pass  # Perhaps show geometry here in the future?
 
-    proj_data = generate_projections(pg, ball_pos, ball_radius)
-
-    proj_data = np.array(list(proj_data))
+    proj_data = generate_projections(pg, ball_pos, ball_radius, cone=cone)
 
     if interactive:
         display_projections(proj_data)

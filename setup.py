@@ -5,6 +5,7 @@
 
 from setuptools import setup, find_packages
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
+import os
 
 with open('README.md') as readme_file:
     readme = readme_file.read()
@@ -43,8 +44,24 @@ dev_requirements = [
     'bumpversion',
     'watchdog',
     'coverage',
-
     ]
+
+
+def __nvcc_args():
+    gxx = os.environ.get('GXX')
+    base_options = [
+        '--maxrregcount', '32',
+        '--ptxas-options=-v',
+        '-arch', 'sm_60',
+        '-lineinfo',
+    ]
+    if gxx is not None:
+        return base_options + ['-ccbin', gxx]
+    else:
+        # Make a copy here because the pytorch build process
+        # overwrites these options.
+        return list(base_options)
+
 
 setup(
     author="Allard Hendriksen",
@@ -80,13 +97,10 @@ setup(
                 'cone_balls/projector.cpp',
                 'cone_balls/projector_cuda.cu',
             ],
-            extra_compile_args={'cxx': [],
-                                'nvcc': [
-                                    '--maxrregcount', '32',
-                                    '--ptxas-options=-v',
-                                    '-arch', 'sm_60',
-                                    '-lineinfo',
-                                ]},
+            extra_compile_args={
+                'cxx': [],
+                'nvcc': __nvcc_args(),
+            },
         ),
     ],
     cmdclass={

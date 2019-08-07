@@ -1,4 +1,4 @@
-#include <ATen/ATen.h>
+#include <torch/extension.h>
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -9,8 +9,6 @@
 #include "THC/THCDeviceTensor.cuh"
 #include "THC/THCAtomics.cuh"
 #include "THC/THCDeviceUtils.cuh"
-#include "THC/THCReduceApplyUtils.cuh"
-#include <THC/THCApply.cuh>
 #include "device_tensor.h"
 
 
@@ -98,13 +96,13 @@ float intersect_ball(float3 ray_origin,
 
 template <typename scalar_t>
 __global__ void
-cuda_project_balls0(dTensor2R ray_origin,
-		    dTensor2R detector_center,
-		    dTensor2R detector_u,
-		    dTensor2R detector_v,
-		    dTensor2R ball_origin,
-		    dTensor1R ball_radius,
-		    dTensor3R out_projections)
+_cuda_project_balls_cone(dTensor2R ray_origin,
+			 dTensor2R detector_center,
+			 dTensor2R detector_u,
+			 dTensor2R detector_v,
+			 dTensor2R ball_origin,
+			 dTensor1R ball_radius,
+			 dTensor3R out_projections)
 {
     int num_angles = ray_origin.getSize(0);
     int num_balls = ball_origin.getSize(0);
@@ -137,20 +135,6 @@ cuda_project_balls0(dTensor2R ray_origin,
 	const float3 det_v_quart = 0.5f * det_v_half;
 	float y = 0;
 
-	{
-	    // // Calculate pixel position
-	    // auto pixel_o = det_o + (4 * h) * det_v_quart + (4 * w) * det_u_quart;
-	    // // Calculate ray direction
-	    // auto ray_dir = pixel_o - ray_o;
-
-
-	    // for (int ball=0; ball < num_balls; ball++) {
-	    // 	float3 ball_o = load_vec(ball_origin[ball]);
-	    // 	float ball_r = ball_radius[ball];
-
-	    // 	y += intersect_ball(ray_o, ray_dir, ball_o, ball_r);
-	    // }
-	}
 	for (int i = -1; i < 2; i+=2) {
 	    for (int j = -1; j < 2; j+=2) {
 		auto pixel_o = det_o + (4 * h + i) * det_v_quart + (4 * w + j) * det_u_quart;
@@ -169,25 +153,83 @@ cuda_project_balls0(dTensor2R ray_origin,
     }
 }
 
+
+template <typename scalar_t>
+__global__ void
+_cuda_project_balls_parallel(dTensor2R ray_dir,
+			     dTensor2R detector_center,
+			     dTensor2R detector_u,
+			     dTensor2R detector_v,
+			     dTensor2R ball_origin,
+			     dTensor1R ball_radius,
+			     dTensor3R out_projections)
+{
+    int num_angles = ray_dir.getSize(0);
+    int num_balls = ball_origin.getSize(0);
+
+    int H = out_projections.getSize(1);
+    int W = out_projections.getSize(2);
+
+    int h = threadIdx.y + blockDim.y * blockIdx.y;
+    int w = threadIdx.x + blockDim.x * blockIdx.x;
+
+    if (W <= w || H <= h) {
+	return;
+    }
+
+    for (int angle=0; angle < num_angles; angle++) {
+	float3 ray_dir_angle = load_vec(ray_dir[angle]);
+	float3 det_o = load_vec(detector_center[angle]);
+	const float3 det_u = load_vec(detector_u[angle]);
+	const float3 det_v = load_vec(detector_v[angle]);
+
+	const float3 det_u_half = 0.5f * det_u;
+	const float3 det_v_half = 0.5f * det_v;
+
+	// The detector origin is at the center of the detector. Move
+	// detector origin to the center of the left-bottom corner
+	// pixel of detector.
+	det_o = det_o - ((H - 1) * det_v_half + (W - 1) * det_u_half);
+
+	const float3 det_u_quart = 0.5f * det_u_half;
+	const float3 det_v_quart = 0.5f * det_v_half;
+	float y = 0;
+
+	for (int i = -1; i < 2; i+=2) {
+	    for (int j = -1; j < 2; j+=2) {
+		auto pixel_o = det_o + (4 * h + i) * det_v_quart + (4 * w + j) * det_u_quart;
+
+		for (int ball=0; ball < num_balls; ball++) {
+		    float3 ball_o = load_vec(ball_origin[ball]);
+		    float ball_r = ball_radius[ball];
+
+		    y += intersect_ball(pixel_o, ray_dir_angle, ball_o, ball_r) / 4.0f;
+		}
+	    }
+	}
+	out_projections[angle][h][w] = y;
+    }
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 //                        Kernel preparation functions                       //
 ///////////////////////////////////////////////////////////////////////////////
 
-at::Tensor cuda_project_balls(at::Tensor ray_origin,      // dim: num_angles * 3
+at::Tensor cuda_project_balls(at::Tensor ray_,            // dim: num_angles * 3
 			      at::Tensor detector_center, // dim: num_angles * 3
-			      at::Tensor detector_u,	  // dim: num_angles * 3
-			      at::Tensor detector_v,	  // dim: num_angles * 3
- 			      at::Tensor ball_origin,     // dim: num_balls  * 3
+			      at::Tensor detector_u,      // dim: num_angles * 3
+			      at::Tensor detector_v,      // dim: num_angles * 3
+			      at::Tensor ball_origin,     // dim: num_balls  * 3
 			      at::Tensor ball_radius,     // dim: num_balls
-			      at::Tensor out_projections) // dim: num_angles * num_v_pixels * num_u_pixels
+			      at::Tensor out_projections, // dim: num_angles * num_v_pixels * num_u_pixels
+			      bool cone)
 {
 
     int block_size = 16;
-    int implementation = 0;
 
-    AT_DISPATCH_FLOATING_TYPES(ray_origin.type(), "cuda_project_balls", ([&] {
+    AT_DISPATCH_FLOATING_TYPES(ray_.scalar_type(), "cuda_project_balls", ([&] {
         // Create device tensors:
-        dTensor2R ray_origin_d = toDeviceTensorR<scalar_t, 2>(ray_origin);
+        dTensor2R ray_d = toDeviceTensorR<scalar_t, 2>(ray_);
         dTensor2R detector_center_d = toDeviceTensorR<scalar_t, 2>(detector_center);
         dTensor2R detector_u_d = toDeviceTensorR<scalar_t, 2>(detector_u);
         dTensor2R detector_v_d = toDeviceTensorR<scalar_t, 2>(detector_v);
@@ -196,11 +238,20 @@ at::Tensor cuda_project_balls(at::Tensor ray_origin,      // dim: num_angles * 3
         dTensor3R out_projections_d = toDeviceTensorR<scalar_t, 3>(out_projections);
 
         dim3 gridSize(THCCeilDiv((int) out_projections_d.getSize(2), block_size),
-    		      THCCeilDiv((int) out_projections_d.getSize(1), block_size));
+                      THCCeilDiv((int) out_projections_d.getSize(1), block_size));
         dim3 blockSize(block_size, block_size);
-	if (implementation == 0) {
-	    cuda_project_balls0<scalar_t><<<gridSize, blockSize>>>
-		(ray_origin_d,
+	if (cone) {
+	    _cuda_project_balls_cone<scalar_t><<<gridSize, blockSize>>>
+		(ray_d,
+		 detector_center_d,
+		 detector_u_d,
+		 detector_v_d,
+		 ball_origin_d,
+		 ball_radius_d,
+		 out_projections_d);
+	} else {
+	    _cuda_project_balls_parallel<scalar_t><<<gridSize, blockSize>>>
+		(ray_d,
 		 detector_center_d,
 		 detector_u_d,
 		 detector_v_d,
@@ -209,8 +260,7 @@ at::Tensor cuda_project_balls(at::Tensor ray_origin,      // dim: num_angles * 3
 		 out_projections_d);
 	}
 
-
-    	THCudaCheck(cudaGetLastError());
+        THCudaCheck(cudaGetLastError());
     }));
   return out_projections;
 }

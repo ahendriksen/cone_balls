@@ -1,4 +1,4 @@
-#include <torch/torch.h>
+#include <torch/extension.h>
 #include <vector>
 #include "ATen/TensorUtils.h"
 #include "ATen/ScalarType.h"
@@ -10,13 +10,14 @@ using namespace pybind11::literals;
 ///////////////////////////////////////////////////////////////////////////////
 //                   Forward declaration of CUDA functions                   //
 ///////////////////////////////////////////////////////////////////////////////
-at::Tensor cuda_project_balls(at::Tensor ray_origin,      // dim: num_angles * 3
+at::Tensor cuda_project_balls(at::Tensor ray_,            // dim: num_angles * 3
 			      at::Tensor detector_center, // dim: num_angles * 3
-			      at::Tensor detector_u,	     // dim: num_angles * 3
-			      at::Tensor detector_v,	     // dim: num_angles * 3
-			      at::Tensor ball_origin,     // dim: num_balls * 3
+			      at::Tensor detector_u,      // dim: num_angles * 3
+			      at::Tensor detector_v,      // dim: num_angles * 3
+			      at::Tensor ball_origin,     // dim: num_balls  * 3
 			      at::Tensor ball_radius,     // dim: num_balls
-			      at::Tensor out_projections); // dim: num_angles * num_v_pixels * num_u_pixels
+			      at::Tensor out_projections, // dim: num_angles * num_v_pixels * num_u_pixels
+			      bool cone);
 
 ///////////////////////////////////////////////////////////////////////////////
 //                                  Macros                                   //
@@ -33,15 +34,17 @@ at::Tensor cuda_project_balls(at::Tensor ray_origin,      // dim: num_angles * 3
 //                                 Functions                                 //
 ///////////////////////////////////////////////////////////////////////////////
 
-at::Tensor project_balls(at::Tensor ray_origin,      // dim: num_angles * 3
+at::Tensor project_balls(at::Tensor ray_,            // dim: num_angles * 3
 			 at::Tensor detector_center, // dim: num_angles * 3
-			 at::Tensor detector_u,	     // dim: num_angles * 3
-			 at::Tensor detector_v,	     // dim: num_angles * 3
+			 at::Tensor detector_u,      // dim: num_angles * 3
+			 at::Tensor detector_v,      // dim: num_angles * 3
 			 at::Tensor ball_origin,     // dim: num_balls * 3
 			 at::Tensor ball_radius,     // dim: num_balls
-			 at::Tensor out_projections) // dim: num_angles * num_v_pixels * num_u_pixels
+			 at::Tensor out_projections, // dim: num_angles * num_v_pixels * num_u_pixels
+                         bool cone)                  // if true: cone, otherwise parallel
 {
-    CHECK_CUDA(ray_origin);
+
+    CHECK_CUDA(ray_);
     CHECK_CUDA(detector_center);
     CHECK_CUDA(detector_u);
     CHECK_CUDA(detector_v);
@@ -50,7 +53,11 @@ at::Tensor project_balls(at::Tensor ray_origin,      // dim: num_angles * 3
     CHECK_CUDA(out_projections);
 
     // Check dimensions
-    AT_ASSERTM(ray_origin.dim() == 2, "ray_origin must be two-dimensional");
+    if (cone) {
+	AT_ASSERTM(ray_.dim() == 2, "ray_origin must be two-dimensional");
+    } else{
+	AT_ASSERTM(ray_.dim() == 2, "ray_direction must be two-dimensional");
+    }
     AT_ASSERTM(detector_center.dim() == 2, "detector_center must be two-dimensional");
     AT_ASSERTM(detector_u.dim() == 2, "detector_u must be two-dimensional");
     AT_ASSERTM(detector_v.dim() == 2, "detector_v must be two-dimensional");
@@ -59,19 +66,19 @@ at::Tensor project_balls(at::Tensor ray_origin,      // dim: num_angles * 3
     AT_ASSERTM(out_projections.dim() == 3, "out_projections must be three-dimensional");
 
     // Check sizes match
-    AT_ASSERTM(ray_origin.size(0) == detector_center.size(0), "");
-    AT_ASSERTM(ray_origin.size(0) == detector_u.size(0), "");
-    AT_ASSERTM(ray_origin.size(0) == detector_v.size(0), "");
+    AT_ASSERTM(ray_.size(0) == detector_center.size(0), "");
+    AT_ASSERTM(ray_.size(0) == detector_u.size(0), "");
+    AT_ASSERTM(ray_.size(0) == detector_v.size(0), "");
     AT_ASSERTM(ball_origin.size(0) == ball_radius.size(0), "");
-    AT_ASSERTM(ray_origin.size(0) == out_projections.size(0), "");
+    AT_ASSERTM(ray_.size(0) == out_projections.size(0), "");
 
-    AT_ASSERTM(ray_origin.size(1) == 3, "");
+    AT_ASSERTM(ray_.size(1) == 3, "");
     AT_ASSERTM(detector_center.size(1) == 3, "");
     AT_ASSERTM(detector_u.size(1) == 3, "");
     AT_ASSERTM(detector_v.size(1) == 3, "");
     AT_ASSERTM(ball_origin.size(1) == 3, "");
 
-    return cuda_project_balls(ray_origin, detector_center, detector_u, detector_v, ball_origin, ball_radius, out_projections);
+    return cuda_project_balls(ray_, detector_center, detector_u, detector_v, ball_origin, ball_radius, out_projections, cone);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -80,5 +87,5 @@ at::Tensor project_balls(at::Tensor ray_origin,      // dim: num_angles * 3
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     m.def("project_balls", &project_balls, "Project balls forward",
 	  "ray_origin"_a, "detector_center"_a, "detector_u"_a, "detector_v"_a,
-	  "ball_origin"_a, "ball_radius"_a, "out_projections"_a);
+	  "ball_origin"_a, "ball_radius"_a, "out_projections"_a, "cone"_a);
 }
