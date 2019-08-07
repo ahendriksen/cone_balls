@@ -6,7 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+- Python 3.7 Conda package
+- Parallel beam projections
 ### Fixed
+- Bug where output directory would not be created
+### Changed
+- Upgraded to pytorch 1.1.0
+### Removed
+- Support for cudatoolkit=9.0
 
 ## [0.2.2] - 2019-05-09
 ### Added

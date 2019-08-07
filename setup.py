@@ -112,6 +112,6 @@ setup(
     tests_require=test_requirements,
     extras_require={'dev': dev_requirements},
     url='https://github.com/ahendriksen/cone_balls',
-    version='0.2.2',
+    version='0.3.0',
     zip_safe=False,
 )

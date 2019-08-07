@@ -42,7 +42,7 @@ project. Go to the cloned directory and run PIP installer:
 ```
 git clone https://github.com/ahendriksen/cone_balls.git
 cd cone_balls
-conda install -c astra-toolbox/label/dev -c pytorch -c conda-forge cuda92 astra-toolbox pytorch torchvision tifffile
+conda install -c astra-toolbox/label/dev -c pytorch -c conda-forge cudatoolkit=10.0 astra-toolbox pytorch torchvision tifffile
 pip install -e .
 ```
 
