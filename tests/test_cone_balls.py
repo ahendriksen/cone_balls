@@ -9,7 +9,7 @@ import cone_balls.cone_balls as cb
 import pyqtgraph as pq
 import astra
 import numpy as np
-
+import torch
 
 class TestCone_balls(unittest.TestCase):
     """Tests for `cone_balls` package."""
@@ -107,3 +107,48 @@ class TestCone_balls(unittest.TestCase):
             proj_data[:, :10, :10] = -1e-3
             pq.image(proj_data, axes={"t": 0, "x": 2, "y": 1})
             app.exec_()
+
+    def test_volume(self):
+
+        ball_pos, ball_radius = cb.generate_balls(100, 1)
+
+        ball_pos = torch.tensor(
+            [[-1, 0, 0],
+             [0, 0, 0],
+             [0, 0.2, 1],
+             [-1, -1, -1],
+            ],
+            dtype=torch.float32,
+            device=torch.device('cuda'),
+        )
+        ball_radius = torch.tensor(
+            [0.2, 0.2, 0.2, 0.2],
+            dtype=torch.float32,
+            device=torch.device('cuda'),
+        )
+        size = torch.tensor((2, 2, 2), dtype=torch.float32)
+        shape = (201, 201, 201)
+        voxel_size = size / torch.tensor(shape, dtype=torch.float32)
+        lower_left_voxel_center = - size / 2 + voxel_size / 2
+        print(voxel_size)
+        print(lower_left_voxel_center)
+        print(lower_left_voxel_center - voxel_size / 2)
+
+        import cone_balls_cuda as cbc
+
+        out_volume = torch.zeros(*shape, dtype=torch.float32).cuda()
+        cbc.compute_volume(
+            lower_left_voxel_center.cuda(),
+            voxel_size.cuda(),
+            ball_pos.cuda(),
+            ball_radius.cuda(),
+            out_volume,
+            super_sampling=8
+        )
+        app = pq.mkQApp()
+        pq.image(
+            out_volume.detach().cpu().numpy(),
+            scale=(1, -1),
+            axes=dict(zip("tyx", range(3))),
+        )
+        app.exec_()

@@ -103,3 +103,4 @@ ENV/
 
 # Emacs:
 *~
+/.dir-locals.el

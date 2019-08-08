@@ -19,6 +19,33 @@ torch_options = {"dtype": torch.float32, "device": torch.device(type="cuda")}
 BATCH = 500
 
 
+def generate_vg(shape, voxel_size):
+    """Generate an ASTRA volume geometry
+
+    :param shape: (z_len, y_len, x_len)
+    :param voxel_size: (z_size, y_size, x_size)
+    :returns:
+    :rtype:
+
+    """
+    size = np.array(shape) * np.array(voxel_size)
+    min_z, min_y, min_x = - size / 2
+    max_z, max_y, max_x = size / 2
+
+    vg = {
+        'option': {
+            'WindowMinX': min_x,
+            'WindowMaxX': max_x,
+            'WindowMinY': min_y,
+            'WindowMaxY': max_y,
+            'WindowMinZ': min_z,
+            'WindowMaxZ': max_z,
+        }
+    }
+    vg['GridSliceCount'], vg['GridRowCount'], vg['GridColCount'] = shape
+    return vg
+
+
 def generate_cone_pg(det_spacing, det_shape, num_angles, SOD, SDD):
     angles = np.linspace(0, 2 * np.pi, num_angles, False)
     pg = astra.create_proj_geom(
@@ -58,6 +85,27 @@ def generate_balls(num_balls, pos_limit):
     ball_pos = (0.5 - torch.rand(num_balls, 3, **torch_options)) * 2.0 * pos_limit
     ball_radius = torch.rand(num_balls, **torch_options) * pos_limit / 10
     return (ball_pos, ball_radius)
+
+
+def generate_volume(vg, ball_pos, ball_radius, super_sampling=1):
+    (min_x, max_x) = vg['option']['WindowMinX'], vg['option']['WindowMaxX']
+    (min_y, max_y) = vg['option']['WindowMinY'], vg['option']['WindowMaxY']
+    (min_z, max_z) = vg['option']['WindowMinZ'], vg['option']['WindowMaxZ']
+
+    # Size and shape in Z x Y x X dimensions
+    size = (max_z - min_z, max_y - min_y, max_x - min_x)
+    shape = (vg['GridSliceCount'], vg['GridRowCount'], vg['GridColCount'])
+
+    voxel_size = torch.tensor(size, **torch_options) / torch.tensor(shape, **torch_options)
+    lower_left_corner = torch.tensor((min_z, min_y, min_x), **torch_options)
+    lower_left_voxel_center = lower_left_corner + voxel_size / 2
+
+    out_volume = torch.zeros(*shape, **torch_options)
+
+    cb.compute_volume(lower_left_voxel_center, voxel_size, ball_pos,
+                      ball_radius, out_volume, super_sampling=super_sampling)
+
+    return out_volume.detach().cpu().numpy()
 
 
 def generate_projections(pg, ball_pos, ball_radius, cone=True):
@@ -155,6 +203,17 @@ def display_projections(proj_data):
     pq.image(proj_data, axes={"t": 0, "x": 2, "y": 1},
              title="Cone balls: projection data")
     app.exec_()
+
+
+def display_volume(data):
+    app = pq.mkQApp()
+    pq.image(
+        data,
+        scale=(1, -1),
+        axes=dict(zip("tyx", range(3))),
+    )
+    app.exec_()
+
 
 
 @click.group()
@@ -377,6 +436,96 @@ def foam(
         save_spec(dir, ball_pos, ball_radius)
         # Save geometry:
         save_geometry(dir, pg)
+        # Save tiff stack:
+        for i, (ball, foam) in tqdm(enumerate(zip(ball_data, foam_data))):
+            filename = f"scan_{i:06d}.tif"
+            path = os.path.join(dir, filename)
+            p = foam - ball
+            tifffile.imsave(path, p)
+
+
+@main.command()
+@click.option("--num_balls", default=100, help="Number of balls to generate.")
+@click.option(
+    "--ball_limit", default=0.25,
+    help="The maximal distance from the origin of a ball"
+)
+@click.option("--shape_z", default=1000, help="Number of slices in Z direction.")
+@click.option("--shape_y", default=1000, help="Number of slices in Y direction.")
+@click.option("--shape_x", default=1000, help="Number of slices in X direction.")
+@click.option("--voxel_size", default=1.05e-3, help="The voxel size.")
+@click.option("--super_sampling", default=1, help="By how much to oversample the voxels.")
+@click.option(
+    "--interactive/--no-interactive",
+    default=False,
+    help="Show resulting data",
+)
+@click.option(
+    "--ball_spec",
+    default=None,
+    type=click.Path(
+        file_okay=True, dir_okay=False, resolve_path=True, allow_dash=False
+    ),
+)
+@click.argument(
+    "dir",
+    type=click.Path(
+        file_okay=False, dir_okay=True, resolve_path=True, allow_dash=False
+    ),
+)
+def foam_volume(
+    num_balls,
+    ball_limit,
+    shape_z,
+    shape_y,
+    shape_x,
+    voxel_size,
+    super_sampling,
+    interactive,
+    ball_spec,
+    dir,
+):
+    """foam generates volume data of a foam ball phantom
+
+    The foam ball has a radius of 0.5 and is centered on the origin.
+    Bubbles can be removed from this foam phantom.
+    The location and size of these bubbles can either be supplied
+    using the --ball_spec option, or randomly generated.
+
+    """
+    dir = Path(dir).expanduser().resolve()
+    click.echo(f"Writing in {dir}!")
+    dir.mkdir(exist_ok=True)
+
+    shape = (shape_z, shape_y, shape_x)
+    vg = generate_vg(shape, (voxel_size, ) * 3)
+
+    if ball_spec:
+        logging.info(f"Not generating balls, using {ball_spec} file.")
+        ball_pos, ball_radius = load_spec(ball_spec)
+    else:
+        logging.info(f"Generating {num_balls} balls.")
+        ball_pos, ball_radius = generate_balls(num_balls, ball_limit)
+
+    foam_pos = torch.zeros(1, 3, **torch_options)
+    foam_radius = torch.full((1,), 0.5, **torch_options)
+
+    ball_data = generate_volume(vg, ball_pos, ball_radius, super_sampling=super_sampling)
+    foam_data = generate_volume(vg, foam_pos, foam_radius, super_sampling=super_sampling)
+
+    if interactive:
+        proj_data = foam_data - ball_data
+        display_volume(proj_data)
+
+    if not interactive:
+        if os.path.exists(dir):
+            warnings.warn(f"{dir} already exists. Overwriting files.")
+
+        # Save ball positions:
+        ball_pos, ball_radius = ball_pos.cpu().numpy(), ball_radius.cpu().numpy()
+        save_spec(dir, ball_pos, ball_radius)
+        # Save geometry:
+        save_geometry(dir, vg)
         # Save tiff stack:
         for i, (ball, foam) in tqdm(enumerate(zip(ball_data, foam_data))):
             filename = f"scan_{i:06d}.tif"

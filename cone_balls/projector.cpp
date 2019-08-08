@@ -19,6 +19,13 @@ at::Tensor cuda_project_balls(at::Tensor ray_,            // dim: num_angles * 3
 			      at::Tensor out_projections, // dim: num_angles * num_v_pixels * num_u_pixels
 			      bool cone);
 
+at::Tensor cuda_volume(at::Tensor lower_left_voxel_center,      // dim: 3
+                       at::Tensor voxel_size,                   // dim:  3
+                       at::Tensor ball_origin,                  // dim: num_balls  * 3
+                       at::Tensor ball_radius,                  // dim: num_balls
+                       at::Tensor out_volume,                   // dim: shape_z * shape_y * shape_x
+		       int super_sampling);
+
 ///////////////////////////////////////////////////////////////////////////////
 //                                  Macros                                   //
 ///////////////////////////////////////////////////////////////////////////////
@@ -33,6 +40,35 @@ at::Tensor cuda_project_balls(at::Tensor ray_,            // dim: num_angles * 3
 ///////////////////////////////////////////////////////////////////////////////
 //                                 Functions                                 //
 ///////////////////////////////////////////////////////////////////////////////
+
+at::Tensor compute_volume(at::Tensor lower_left_voxel_center,      // dim: 3
+			  at::Tensor voxel_size,                   // dim:  3
+			  at::Tensor ball_origin,                  // dim: num_balls  * 3
+			  at::Tensor ball_radius,                  // dim: num_balls
+			  at::Tensor out_volume,                   // dim: shape_z * shape_y * shape_x
+			  int super_sampling)
+{
+    CHECK_CUDA(lower_left_voxel_center);
+    CHECK_CUDA(voxel_size);
+    CHECK_CUDA(ball_origin);
+    CHECK_CUDA(ball_radius);
+    CHECK_CUDA(out_volume);
+
+    // Check dimensions
+    AT_ASSERTM(lower_left_voxel_center.dim() == 1, "Lower_left_voxel_center must be one-dimensional");
+    AT_ASSERTM(voxel_size.dim() == 1, "Voxel_size must be one-dimensional");
+    AT_ASSERTM(ball_origin.dim() == 2, "ball_origin must be two-dimensional");
+    AT_ASSERTM(ball_radius.dim() == 1, "ball_radius must be one-dimensional");
+    AT_ASSERTM(out_volume.dim() == 3, "out_volume must be three-dimensional");
+
+    // Check sizes match
+    AT_ASSERTM(lower_left_voxel_center.size(0) == 3, "Lower_left_voxel_center must have 3 elements");
+    AT_ASSERTM(voxel_size.size(0) == 3, "Voxel_size must have 3 elements");
+    AT_ASSERTM(ball_origin.size(0) == ball_radius.size(0), "");
+    AT_ASSERTM(ball_origin.size(1) == 3, "");
+
+    return cuda_volume(lower_left_voxel_center, voxel_size, ball_origin, ball_radius, out_volume, super_sampling);
+}
 
 at::Tensor project_balls(at::Tensor ray_,            // dim: num_angles * 3
 			 at::Tensor detector_center, // dim: num_angles * 3
@@ -88,4 +124,13 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     m.def("project_balls", &project_balls, "Project balls forward",
 	  "ray_origin"_a, "detector_center"_a, "detector_u"_a, "detector_v"_a,
 	  "ball_origin"_a, "ball_radius"_a, "out_projections"_a, "cone"_a);
+
+    m.def("compute_volume", &compute_volume, "Compute volume",
+	  "lower_left_voxel_center"_a,
+	  "voxel_size"_a,
+	  "ball_origin"_a,
+	  "ball_radius"_a,
+	  "out_volume"_a,
+	  "super_sampling"_a=1
+	  );
 }

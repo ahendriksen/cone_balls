@@ -45,12 +45,20 @@ __device__ float3 operator*(const float3 &a, const float3 &b) {
     return make_float3(a.x*b.x, a.y*b.y, a.z*b.z);
 }
 
+__device__ float3 operator*(const int3 &a, const float3 &b) {
+    return make_float3(a.x*b.x, a.y*b.y, a.z*b.z);
+}
+
 __device__ float3 operator*(const int &a, const float3 &b) {
     return make_float3(a*b.x, a*b.y, a*b.z);
 }
 
 __device__ float3 operator*(const float &a, const float3 &b) {
     return make_float3(a*b.x, a*b.y, a*b.z);
+}
+
+__device__ float3 operator/(const float3 &a, const float &b) {
+    return make_float3(a.x / b, a.y / b, a.z / b);
 }
 
 
@@ -92,6 +100,75 @@ float intersect_ball(float3 ray_origin,
 	} else {
 	    return 0;
 	}
+}
+
+__inline__ __device__
+float intersect_ball_point(float3 point,
+			   float3 ball_origin,
+			   float ball_radius)
+{
+
+    auto d = (point - ball_origin);
+    auto distance = sum3(d * d);
+    if (distance < ball_radius * ball_radius) {
+	return 1.0;
+    } else{
+	return 0.0;
+    }
+}
+
+
+template <typename scalar_t>
+__global__ void
+_cuda_ball_volume(dTensor1R lower_left_voxel_center,
+		  dTensor1R voxel_size,
+		  dTensor2R ball_origin,
+		  dTensor1R ball_radius,
+		  dTensor3R out_volume,
+		  int super_sampling)
+{
+    int num_balls = ball_origin.getSize(0);
+
+    int X_len = out_volume.getSize(2);
+    int Y_len = out_volume.getSize(1);
+    int Z_len = out_volume.getSize(0);
+
+    int x = threadIdx.x + blockDim.x * blockIdx.x;
+    int y = threadIdx.y + blockDim.y * blockIdx.y;
+
+    if (X_len <= x || Y_len <= y) {
+	return;
+    }
+
+    float3 llc_o = make_float3((float) lower_left_voxel_center[0], (float) lower_left_voxel_center[1], (float) lower_left_voxel_center[2]);
+    float3 voxel_sz = make_float3((float) voxel_size[0], (float) voxel_size[1], (float) voxel_size[2]);
+
+    for (int z = 0; z < Z_len; z++) {
+	float3 voxel_o = llc_o + make_int3(z, y, x) * voxel_sz;
+
+	float out = 0.0;
+	for (int ball=0; ball < num_balls; ball++) {
+	    float3 ball_o = load_vec(ball_origin[ball]);
+	    float ball_r = ball_radius[ball];
+
+	    // out += intersect_ball_point(voxel_o, ball_o, ball_r);
+
+	    auto step = voxel_sz / (float) super_sampling;
+
+	    for (int i = 0; i < super_sampling; i += 1) {
+	    	for (int j = 0; j < super_sampling; j += 1) {
+		    for (int k = 0; k < super_sampling; k += 1) {
+			auto sample_point = voxel_o
+			    - 0.5f * (super_sampling - 1) * step
+			    + make_float3(i, j, k) * step;
+			out += intersect_ball_point(sample_point, ball_o, ball_r);
+		    }
+		}
+	    }
+	}
+	float super_sampling_divisor = super_sampling * super_sampling * super_sampling;
+	out_volume[z][y][x] = out / super_sampling_divisor;
+    }
 }
 
 template <typename scalar_t>
@@ -263,4 +340,39 @@ at::Tensor cuda_project_balls(at::Tensor ray_,            // dim: num_angles * 3
         THCudaCheck(cudaGetLastError());
     }));
   return out_projections;
+}
+
+at::Tensor cuda_volume(at::Tensor lower_left_voxel_center,      // dim: 3
+                       at::Tensor voxel_size,                   // dim:  3
+                       at::Tensor ball_origin,                  // dim: num_balls  * 3
+                       at::Tensor ball_radius,                  // dim: num_balls
+                       at::Tensor out_volume,                   // dim: shape_z * shape_y * shape_x
+		       int super_sampling)
+{
+
+    int block_size = 16;
+
+    AT_DISPATCH_FLOATING_TYPES(out_volume.scalar_type(), "cuda_volume", ([&] {
+        // Create device tensors:
+        dTensor1R lower_left_voxel_center_d = toDeviceTensorR<scalar_t, 1>(lower_left_voxel_center);
+	dTensor1R voxel_size_d = toDeviceTensorR<scalar_t, 1>(voxel_size);
+        dTensor2R ball_origin_d = toDeviceTensorR<scalar_t, 2>(ball_origin);
+        dTensor1R ball_radius_d = toDeviceTensorR<scalar_t, 1>(ball_radius);
+        dTensor3R out_volume_d = toDeviceTensorR<scalar_t, 3>(out_volume);
+
+        dim3 gridSize(THCCeilDiv((int) out_volume_d.getSize(2), block_size),
+                      THCCeilDiv((int) out_volume_d.getSize(1), block_size));
+        dim3 blockSize(block_size, block_size);
+        _cuda_ball_volume<scalar_t><<<gridSize, blockSize>>>
+	    (lower_left_voxel_center_d,
+	     voxel_size_d,
+	     ball_origin_d,
+	     ball_radius_d,
+	     out_volume_d,
+	     super_sampling);
+
+
+        THCudaCheck(cudaGetLastError());
+    }));
+  return out_volume;
 }
