@@ -10,7 +10,7 @@ source:
     path: ../
 
 build:
-    number: '2'
+    number: '3'
     script_env:
       - TMP_NVCC_LOCATION         # Used to store multiple versions of the CUDA toolkit
     entry_points:

@@ -6,10 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
-- Support for writing out the volume
 ### Fixed
 ### Changed
 ### Removed
+
+## [0.3.1] - 2019-08-08
+### Added
+- Experimental support for writing out the volume
 
 ## [0.3.0] - 2019-8-07
 ### Added
@@ -46,7 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial release.
 
-[Unreleased]: https://www.github.com/ahendriksen/cone_balls/compare/v0.3.0...HEAD
+[Unreleased]: https://www.github.com/ahendriksen/cone_balls/compare/v0.3.1...HEAD
+[0.3.1]: https://www.github.com/ahendriksen/cone_balls/compare/v0.3.0...v0.3.1
 [0.3.0]: https://www.github.com/ahendriksen/cone_balls/compare/v0.2.2...v0.3.0
 [0.2.2]: https://www.github.com/ahendriksen/cone_balls/compare/v0.2.1...v0.2.2
 [0.2.1]: https://www.github.com/ahendriksen/cone_balls/compare/v0.2.0...v0.2.1
